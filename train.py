@@ -5,7 +5,6 @@ import low_bandwidth
 import optax
 import numpy as np
 import data_set
-from mpi4py import MPI
 import communication
 import result_collecting
 import time
@@ -75,9 +74,9 @@ def train_epoch(params, opt_state, train_ds, temp_grads, batch_size:int,
 
     train_ds_size = len(train_ds['image'])
     steps_per_epoch = train_ds_size // batch_size
-    permed_data = jax.random.permutation(rng, train_ds_size)
-    permed_data = permed_data[:steps_per_epoch * batch_size]
-    permed_data = permed_data.reshape((steps_per_epoch, batch_size))
+    permed_data = jax.random.permutation(rng, train_ds_size)  # shuffle the data
+    permed_data = permed_data[:steps_per_epoch * batch_size]  # remove the last batch if it is not full
+    permed_data = permed_data.reshape((steps_per_epoch, batch_size))  # split the data into batches
 
     batch_metrics = []
 
@@ -93,19 +92,21 @@ def train_epoch(params, opt_state, train_ds, temp_grads, batch_size:int,
     batch_metrics_np = jax.device_get(batch_metrics)
     epoch_metrics_np = {i: np.mean([metrics[i] for metrics in batch_metrics_np])for i in batch_metrics_np[0]}
     print(f"\nepoch: {epoch}  -  loss: {epoch_metrics_np['loss']}  -  accuracy: {epoch_metrics_np['accuracy'] * 100}")
-    if comm.rank == 0:
+    if not hypothesis:
+        if comm.Get_rank() == 0:
+            result_collecting.save_as_json(experiment_type=experiment_type, epoch=epoch, loss=epoch_metrics_np['loss'], accuracy=epoch_metrics_np['accuracy'], time_for_epoch=(time.perf_counter-start))
+    else:
         result_collecting.save_as_json(experiment_type=experiment_type, epoch=epoch, loss=epoch_metrics_np['loss'], accuracy=epoch_metrics_np['accuracy'], time_for_epoch=(time.perf_counter-start))
-    
+
     return params, opt_state, temp_grads
 
 
 
-def train(optimizer, train_ds, experiment_type, num_classes, get_model_func, compression, gradient_spar, input_shape, hypothesis = False):
+def train(optimizer, train_ds, comm,experiment_type, num_classes, get_model_func, compression, gradient_spar, input_shape, hypothesis = False):
     #print(train_ds)
 
     num_epochs = 20
     batch_size = 32
-    comm = MPI.COMM_WORLD
 
     params, model = get_model_func(num_classes=num_classes)
 
