@@ -3,25 +3,18 @@ import jax.numpy as jnp
 import train_model
 
 
-def get_temp_grads(params, batch_image, batch_label, num_classes):
-    @jax.jit
-    def forward(params):
-        resnet = train_model.get_resnet(no_params=True, num_classes=num_classes)
-        logits = resnet.apply(params, batch_image)
-        loss = train_model.get_loss(logits=logits, labels=batch_label, num_classes=num_classes)
-        return loss, logits
-    
-    grad_fn = jax.value_and_grad(forward, has_aux=True)
-    (_, logits), grads = grad_fn(params)
-    flat_temp_grads = []
-    for i in jax.tree_util.tree_flatten(grads)[0]:
-        flat_temp_grads.append(jnp.zeros_like(i))
-    temp_grads = jax.tree_util.tree_unflatten(jax.tree_util.tree_flatten(grads)[1], flat_temp_grads)
-    return temp_grads
+def get_temp_grads(params):
+
+    params, flattened =  jax.tree_flatten(params)
+    flat_temp_params = []
+    for i in params:
+      flat_temp_params.append(jnp.zeros_like(i))
+    params = jax.tree_unflatten(flattened, flat_temp_params)
+    return params
 
 
 @jax.jit
-def gradient_accum(grads, temp_grads, threshold):
+def gradient_sparcification(grads, temp_grads, threshold):
     flat_grads = jax.tree_util.tree_flatten(grads)
     flat_temp_grads = jax.tree_util.tree_flatten(temp_grads)
     pre_grads = jax.tree_map(jax.vmap(lambda x,y: x+y), flat_temp_grads[0], flat_grads[0])

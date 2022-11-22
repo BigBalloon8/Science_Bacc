@@ -1,4 +1,7 @@
 {
-    "control_results" : [],
-    "experiment_results" : []
+    "hypothetical": {"VGG16": {}, "ResNet50": {}, "InceptionV4": {}},
+    "control" : {"VGG16": {}, "ResNet50": {}, "InceptionV4": {}},
+    "experiment1" : {"VGG16": {}, "ResNet50": {}, "InceptionV4": {}},
+    "experiment2" : {"VGG16": {}, "ResNet50": {}, "InceptionV4": {}},
+    "experiment3" : {"VGG16": {}, "ResNet50": {}, "InceptionV4": {}}
 }

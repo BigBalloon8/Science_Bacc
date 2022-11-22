@@ -13,8 +13,8 @@ def ring_all_reduce(comm, grads, compression=True):
 
     grads = jnp.array_split(grads, size)
     grads = jnp.concatenate((grads[:(rank + 1)] + grads[(rank + 1):]))
-    token = mpi4jax.barrier(comm=comm)
 
+    token = mpi4jax.barrier(comm=comm)
 
     for i, j in enumerate(grads): 
 
