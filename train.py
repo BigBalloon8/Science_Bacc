@@ -19,14 +19,18 @@ def compute_metrics(*, logits, labels, num_classes):
 def train_step(params, opt_state, temp_grads, batch_image, batch_label, comm, model, optimizer, num_classes, compression=False, gradient_spar=False):
 
     @jax.jit
-    def forward(params, model, batch_image, batch_label):
+    def forward(params, model, batch_image, batch_label, loss_func):
         logits = model.apply(params, batch_image)
-        loss = train_model.get_loss(logits=logits, labels=batch_label, num_classes=num_classes)
+        loss = loss(logits=logits, labels=batch_label, num_classes=num_classes)
         return loss, logits
     
     grad_fn = jax.value_and_grad(forward, has_aux=True)
-    (_, logits), grads = grad_fn(params, model, batch_image, batch_label)
-
+    if type(model).__name__ == "inception_v4":
+        loss_func = train_model.get_loss
+    else:
+        loss_func = train_model.l2_loss
+    (_, logits), grads = grad_fn(params, model, batch_image, batch_label, loss_func)
+    
     if compression and gradient_spar:
         grads, temp_grads = low_bandwidth.gradient_sparcification(grads, temp_grads, 0.000001)
         compressed_grads = low_bandwidth.compress(grads)

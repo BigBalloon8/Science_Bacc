@@ -4,7 +4,6 @@ import train_model
 
 
 def get_temp_grads(params):
-
     params, flattened =  jax.tree_flatten(params)
     flat_temp_params = []
     for i in params:

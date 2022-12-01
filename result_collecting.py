@@ -15,3 +15,4 @@ def save_as_json(experiment_type, epoch, loss, accuracy, time_for_epoch):
 
     with open(f"{os.path.dirname(__file__)}/results.json", "w") as file:
         results = json.dump(results, file)
+
