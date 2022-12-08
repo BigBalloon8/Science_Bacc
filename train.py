@@ -16,20 +16,22 @@ def compute_metrics(*, logits, labels, num_classes):
     return metrics
 
 @jax.jit
-def train_step(params, opt_state, temp_grads, batch_image, batch_label, comm, model, optimizer, num_classes, compression=False, gradient_spar=False):
+def train_step(params, opt_state, temp_grads, batch_image, batch_label, comm, model, optimizer, num_classes, compression=False, gradient_spar=False, rng=None):
 
     @jax.jit
-    def forward(params, model, batch_image, batch_label, loss_func):
-        logits = model.apply(params, batch_image)
-        loss = loss(logits=logits, labels=batch_label, num_classes=num_classes)
+    def forward(params, model, batch_image, batch_label, loss_func, rngs=None):
+        logits = model.apply(params, batch_image, rngs=rngs)
+        loss = loss_func(logits=logits, labels=batch_label, num_classes=num_classes)
         return loss, logits
     
     grad_fn = jax.value_and_grad(forward, has_aux=True)
     if type(model).__name__ == "inception_v4":
-        loss_func = train_model.get_loss
-    else:
         loss_func = train_model.l2_loss
-    (_, logits), grads = grad_fn(params, model, batch_image, batch_label, loss_func)
+        rngs = {"dropout": rng}
+    else:
+        loss_func = train_model.get_loss
+        rngs = None
+    (_, logits), grads = grad_fn(params, model, batch_image, batch_label, loss_func, rngs)
     
     if compression and gradient_spar:
         grads, temp_grads = low_bandwidth.gradient_sparcification(grads, temp_grads, 0.000001)
@@ -90,7 +92,7 @@ def train_epoch(params, opt_state, train_ds, temp_grads, batch_size:int,
         if hypothesis:
             params, opt_state, metrics = hypo_train_step(params, opt_state,  batch['image'], batch['label'], model, optimizer, num_classes)
         else:
-            params, opt_state, temp_grads, metrics = train_step(params, opt_state, temp_grads, jax.image.resize(image=batch["image"],shape=(batch_size,input_shape,input_shape,3)), batch["label"], comm, model, optimizer, num_classes, compression, gradient_spar, hypothesis)
+            params, opt_state, temp_grads, metrics = train_step(params, opt_state, temp_grads, jax.image.resize(image=batch["image"],shape=(batch_size,input_shape,input_shape,3)), batch["label"], comm, model, optimizer, num_classes, compression, gradient_spar, hypothesis, rng=rng)
         batch_metrics.append(metrics)
     
     batch_metrics_np = jax.device_get(batch_metrics)
