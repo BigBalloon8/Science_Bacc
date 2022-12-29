@@ -1,7 +1,7 @@
-\documentclass[11pt]{extarticle}
+\documentclass[11pt]{article}
 \usepackage[margin=1in]{geometry}
 \usepackage[parfill]{parskip}
-\usepackage{amsmath, amsfonts}
+\usepackage{amsmath, amsfonts,tabularx}
 \title{Improving the Performance of Low Bandwidth Distributed Data Parallelism}
 \author{Christopher Rae \\ \begin{small} email: 110641877@ea.edin.sch.uk \end{small}}
 
@@ -11,6 +11,8 @@
 
 \begin{document}
 \maketitle
+\tableofcontents
+\newpage
 
 \begin{abstract}
 There is no doubt that networking is a bottleneck when training neural networks across multiple nodes. Having a low bandwidth or a high delay in time it takes for data to be transferred between nodes can drastically increase training time of a neural network. It has become industry standard to use fast networking with bandwidths of up to 100Gbps this makes the requirements for training across multiple nodes very expensive. \\
@@ -31,7 +33,7 @@ To provide a better understanding of the role that WiFi bandwidth plays in the t
 Overall, our goal is to shed light on the importance of WiFi bandwidth in the training of AI models using distributed data parallelism and to identify strategies for optimizing the training process in low bandwidth environments. We hope that the findings of this research will be useful for practitioners seeking to improve the efficiency of their model training process and for researchers studying the optimization of distributed data parallelism for AI model training.
 
 \section{Methodology}
-\subsection*{Distributed Data Parallelism}
+\subsection{Distributed Data Parallelism}
 The goal of distributed data parallelism is to split the data across the GPUs and computers in the cluster, so that the training process can be completed faster by leveraging the additional computational resources.
 
 Here is an overview of the process:
@@ -51,14 +53,14 @@ In a decentralized topology, the process of gradient averaging or gradient synch
 
 We find in this paper ---INSERT LINK--- that decentralized topology's are effected less by low bandwidths, and that is why we implement a decentralized architecture in our papers. To be more specific, we use our own implementation of the Baidu Ring AllReduce algorithm to average our gradients.
 
-\subsection*{SGD}
+\subsection{SGD}
 
 The training data is denoted as $\{x_i\}^n_{i=1} \subset \mathbb{R}^d$, and the model parameter vector is donated as\\ $w \in \mathbb{R}^d$. The goal of training is to solve the following optimization problem 
 $$
 \min_w f
 (w) = \frac{1}{n} \sum^n_{i=1}L(w,x_i)
 $$
-We typically use a an algorithm such as stochastic gradient descent(SGD) to solve the equation above. In which we need to calculate the unbiased stochastic gradients of $f$ at time step $t$ which satisfies $\mathbb{E}[g_t(w)] = {\nabla} f(w)$. SGD written as:
+Where $L$ is the loss function. We typically use a an algorithm such as stochastic gradient descent(SGD) to solve the equation above. In which we need to calculate the unbiased stochastic gradients of $f$ at time step $t$ which satisfies $\mathbb{E}[g_t(w)] = {\nabla} f(w)$. SGD written as:
 
 $$
 w_{t+1} = w_t - \eta g_t(w_t)
@@ -67,7 +69,7 @@ $$
 Where $g_t(w_t)$ is an estimate for the actual gradient ${\nabla} f(w_t)$ and $\eta$ is the learning rate. For simplicity we'll let $g$ represent $g_t(w_t)$. The convergence of SGD is largely influenced by the variance of $g$. In most implementations of distributed parallelism it is $g$ which is averaged between all of the replicas.
 
 
-\subsection*{Gradient Quantization}
+\subsection{Gradient Quantization}
 Gradient quantization is a technique used in distributed data parallelism to reduce the amount of data that needs to be transmitted over channels during training. It works by reducing the precision of the gradients that are transmitted between worker nodes.
 
 A model parameter is usually stored in memory as a 32bit floating point. There are $7, 800, 000, 000,\\ 000, 000,000,000,000,000,000,000,000,000,000,000,000,000,000$(38zeros) unique float32 numbers, but that said numbers like $0.000100$, $0.000101$ and $0.000102$ are very close. We can approximate these to number to be equal, this is the core concept of quantization. When we calculate 
@@ -79,17 +81,17 @@ As mentioned above $a \sim \mathcal{N}(0.1,0.55)$ this tells us that that most o
 Modern models can contain billions of trainable parameters, which translates to billions of gradients. If we represent all of those gradient as 256 different integers we loose a lot of accuracy so what we do is we split gradients into chunks of around 2000 values and quantize each chunk separately this means that the first bin in the first chunk might cover a different ranges of values to the first bin in the second chunk. there are a few reasons for this, the first being that it allows us to use 8bit integers without a significant loss in accuracy, the second being that we can allocate each chunk to a specific GPU core. If one of the values in $a$ is $7$ this is a clear outlier this will effect one of the bins causing 1 bin to be wasted because of single outlier. By splitting up the data into chunks only a hand full of chunks will be effected by outliers. This type of quantization is called block-wise quantization.
 
 
-\subsubsection*{Formula}
+\subsubsection{Formula}
 
 
 
 
-\subsection*{Gradient Sparsification}
+\subsection{Gradient Sparsification}
 Gradient sparsification is a technique that involves identifying and removing "zero" or nearly zero gradients from the gradients being transmitted between GPUs or computers in a distributed data parallelism setting. The goal is to reduce the size of the gradients without significantly affecting their quality, so that they can be transmitted more efficiently over the network.
 
 In order to perform gradient sparsification we have to decide on a threshold to determine whether or not a gradient is a zero gradient or not, if the gradient is less than the threshold then it it deemed a zero gradient. In our implementation of gradient sparsification we accumulate zero gradients locally and sum them with gradients from the next iteration. 
 
-\subsubsection*{Formula}
+\subsubsection{Formula}
 We denote sparsified gradients as $S(g, Z_t)$. We have to remember that $g \in \mathbb{R}^d$ so we let $g_i$ be the $i$-th component of the vector ($g=[g_1,\ldots,g_d]$). $Z$ is a vector with the same shape a $g$, when the $w$ is initialized at the start of the training process $Z_i = 0$. The function $S$ has 2 outputs the first being the new representation of the gradient of the weights at $t$, $v$ and the second being the accumulated gradients $Z_{t+1}$ 
 
 Sparsification of the gradients is shown as follows: 
@@ -115,10 +117,44 @@ $$
 where $\alpha$ is the the threshold
 
 
-\subsection*{Larger Batch Sizes}
+\subsection{Larger Batch Sizes}
+In machine learning, the batch size refers to the number of samples that will be processed before the model's weights are updated. The batch size is a hyperparameter that can be chosen when training a model. When using a batch size the SGD algorithm becomes mini-batch SGD it looks something like this:
+
+$$
+g_t(w_t) = \frac{1}{B_k} \sum_{i=i}^{B_k} {\nabla} f(w_t)
+$$
+$$
+w_{t+1} = w_t - \eta g_t(w_t)
+$$ 
+
+
 Increasing the batch size in a distributed training setup can also improve training efficiency by reducing the frequency of the gradient averaging step. This is because each device will process a larger amount of data before the gradients are averaged and applied to the model weights. This can reduce the overhead associated with performing the gradient averaging step, and can allow the model to make more efficient use of the available computation resources.
 
-However, it is important to carefully tune the batch size, as increasing it too much can negatively impact the convergence and accuracy of the model. This is because a larger batch size can lead to a more noisy gradient estimate, which can make it more difficult for the model to learn effectively.
+One negative effect of large batch sizes is that they can lead to a decrease in generalization performance. This occurs because large batch sizes can result in an increase in the variance of the stochastic gradient descent (SGD) updates, which can cause the model to overfit to the training data. This overfitting can manifest as a decrease in performance on held-out test data or a decrease in the ability of the model to generalize to unseen data.
+
+Another negative effect of large batch sizes is that they can lead to a decrease in the convergence rate of the model. This occurs because large batch sizes can result in a reduction in the magnitude of the SGD updates, which can slow down the convergence of the model. In some cases, this can result in the model failing to converge at all.
+
+Furthermore, using large batch sizes can lead to an increase in the amount of memory required to store and process the data. This can be a problem for systems with limited memory or for models with a large number of parameters, as the large batch sizes may not fit in memory.
+
+There are a few things we can do to recude the negative effects of a large batch size.
+
+\subsection{Tests}
+\subsubsection{Models}
+Within our test we use a range of diferrent models. The most important factor when choosing a model is to make sure we ge a good range of sizes between out models. These are the models we have tested:
+
+\begin{center}
+\begin{tabular}{| p{3cm} | p{3cm} | p{3cm} | p{3cm} |} 
+\hline
+Model & Parameters & Dataset & Task \\ \hline
+RESNET-50 & 25,583,592 & ImageNet-1k & MoCo v2 \\ \hline
+VGG16 &  138,357,544 & CIFAR-100 & None \\ \hline
+Inception v4 & 42,711,400 & ImageNet-1k & MoCo v2\\ \hline
+Transformer & 0 & Multiple & GLUE \\ \hline
+RoBERTa-Large & 0 & Multiple & GLUE \\ \hline
+\end{tabular}
+\end{center}
+\subsubsection{testing methods}
+We start 
 
 \section{Results}
 \section{Conclusion}
