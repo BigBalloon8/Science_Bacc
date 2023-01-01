@@ -2,7 +2,7 @@
 \usepackage[margin=1in]{geometry}
 \usepackage[parfill]{parskip}
 \usepackage{amsmath, amsfonts,tabularx}
-\title{Improving the Performance of Low Bandwidth Distributed Data Parallelism}
+\title{Improving the Performance of Data Parallelism \\Over a Low Bandwidth Distributed }
 \author{Christopher Rae \\ \begin{small} email: 110641877@ea.edin.sch.uk \end{small}}
 
 \date{}
@@ -60,13 +60,13 @@ $$
 \min_w f
 (w) = \frac{1}{n} \sum^n_{i=1}L(w,x_i)
 $$
-Where $L$ is the loss function. We typically use a an algorithm such as stochastic gradient descent(SGD) to solve the equation above. In which we need to calculate the unbiased stochastic gradients of $f$ at time step $t$ which satisfies $\mathbb{E}[g_t(w)] = {\nabla} f(w)$. SGD written as:
+Where $L$ is the loss function. We typically use a an algorithm such as stochastic gradient descent(SGD) to solve the equation above. In which we need to calculate the unbiased stochastic gradients of $f$ at time step $t$ which satisfies $\mathbb{E}[g_t(w)] = {\nabla} L_t(w)$. SGD written as:
 
 $$
 w_{t+1} = w_t - \eta g_t(w_t)
 $$
 
-Where $g_t(w_t)$ is an estimate for the actual gradient ${\nabla} f(w_t)$ and $\eta$ is the learning rate. For simplicity we'll let $g$ represent $g_t(w_t)$. The convergence of SGD is largely influenced by the variance of $g$. In most implementations of distributed parallelism it is $g$ which is averaged between all of the replicas.
+Where $g_t(w_t)$ is an estimate for the actual gradient ${\nabla} L_t(w_t)$ and $\eta$ is the learning rate. For simplicity we'll let $g$ represent $g_t(w_t)$. The convergence of SGD is largely influenced by the variance of $g$. In most implementations of distributed parallelism it is $g$ which is averaged between all of the replicas.
 
 
 \subsection{Gradient Quantization}
@@ -114,21 +114,21 @@ Z_{t+1,i} =
 \right\}
 $$
 
-where $\alpha$ is the the threshold
+where $\alpha$ is the the threshold.
 
 
 \subsection{Larger Batch Sizes}
-In machine learning, the batch size refers to the number of samples that will be processed before the model's weights are updated. The batch size is a hyperparameter that can be chosen when training a model. When using a batch size the SGD algorithm becomes mini-batch SGD it looks something like this:
+In machine learning, the batch size refers to the number of samples that will be processed before the model's weights are updated. The batch size is a hyper parameter that can be chosen when training a model. When using a batch size the SGD algorithm becomes mini-batch SGD it looks something like this:
 
 $$
-g_t(w_t) = \frac{1}{B_k} \sum_{i=i}^{B_k} {\nabla} f(w_t)
+g = \frac{1}{B_k} \sum_{i=1}^{B_k} {\nabla} L(w_t)
 $$
 $$
-w_{t+1} = w_t - \eta g_t(w_t)
+w_{t+1} = w_t - \eta g
 $$ 
 
 
-Increasing the batch size in a distributed training setup can also improve training efficiency by reducing the frequency of the gradient averaging step. This is because each device will process a larger amount of data before the gradients are averaged and applied to the model weights. This can reduce the overhead associated with performing the gradient averaging step, and can allow the model to make more efficient use of the available computation resources.
+Where $B_k$ is the batch size. Increasing the batch size in a distributed training setup can also improve training efficiency by reducing the frequency of the gradient averaging step. This is because each device will process a larger amount of data before the gradients are averaged and applied to the model weights. This can reduce the overhead associated with performing the gradient averaging step, and can allow the model to make more efficient use of the available computation resources.
 
 One negative effect of large batch sizes is that they can lead to a decrease in generalization performance. This occurs because large batch sizes can result in an increase in the variance of the stochastic gradient descent (SGD) updates, which can cause the model to overfit to the training data. This overfitting can manifest as a decrease in performance on held-out test data or a decrease in the ability of the model to generalize to unseen data.
 
@@ -136,27 +136,54 @@ Another negative effect of large batch sizes is that they can lead to a decrease
 
 Furthermore, using large batch sizes can lead to an increase in the amount of memory required to store and process the data. This can be a problem for systems with limited memory or for models with a large number of parameters, as the large batch sizes may not fit in memory.
 
-There are a few things we can do to recude the negative effects of a large batch size.
+One way to counteract the second point is to increase the learning rate $\eta$ so that the magnitude of the SGD updates are increased this usually works for a few of epochs but after a while has a limited effect. We plan to use a dynamic batch size. At the start of training a batch size is determined and the test error is calculated from the models untrained parameters. After each epoch the the the test error is check once the test error is half of the original the batch size is then doubled, once the test error has quartered the batch size is doubled again batch.
 
-\subsection{Tests}
-\subsubsection{Models}
-Within our test we use a range of diferrent models. The most important factor when choosing a model is to make sure we ge a good range of sizes between out models. These are the models we have tested:
+Another way which we can reduce the ngative effect of a lrge batch size is to use a optimizer algorithm other than SGD such as Adam. Adam (Adaptive Moment Estimation) is an optimization algorithm. It is an extension of the stochastic gradient descent (SGD) algorithm and combines the benefits of SGD with the benefits of other adaptive optimization algorithms such as RMSprop. 
+
+One way that Adam helps to reduce the negative effects of using a large batch size is by using an adaptive learning rate. Adam maintains an exponential moving average of the gradients and the squared gradients, which it uses to compute an adaptive learning rate for each parameter. This adaptive learning rate is then used to update the parameters of the model, rather than using a fixed learning rate as in SGD. 
+
+By using an adaptive learning rate, Adam is able to make more aggressive updates to the model's parameters when the gradients are small and make smaller updates when the gradients are large. This can help the model converge more quickly and reduce the negative effects of using a large batch size.
+ 
+In addition to using an adaptive learning rate, Adam also incorporates momentum into the optimization process. This helps the model to continue making progress even when it encounters noisy or oscillating gradients although this doesn't have an effect on the low bandwidth.
+
+
+
+\subsubsection{Formula for the Dynamic Batch Size}
+
+Let $E_e$ be the test error function at epoch $e$ which takes the parameters $w_t$ which is the model parameters at the time step $t$ at the start of epoch $e$. Let $b$ be the initial batch size and where      $\beta$ is the maximum batch size.  
+\newpage
+\begingroup
+\Large
+$$
+\varepsilon = \max \left(1, 2^{(\lfloor E_0(w_0,x_R)/E_e(w_t, x_R) \rfloor -1)} \right)
+$$
+$$
+B_k = \min \left(\beta,b\varepsilon\right)
+$$
+\endgroup
+
+These equation explain dynamic batch sizing. first the scaling factor $\varepsilon$ is calculated by 2 to the power of the initial train error divided by the train error at epoch $e$ floored and subtracted by 1, we make sure that value is greater than 1 as if for some reason $E_0(w_0,x_R) < E_e(w_t, x_R)$ the batch size would decrease which is not what we want. Then its just a case of multiplying $b$ by your scaling factor    $\varepsilon$ and check to see if its greater than $\beta$. Please not that using the output of a loss function in stead of the test error is sufficient.
+
+
+\subsection{Models}
+Within our test we use a range of different models. The most important factor when choosing a model is to make sure we get a good range of sizes between out models. These are the models we have tested:
 
 \begin{center}
 \begin{tabular}{| p{3cm} | p{3cm} | p{3cm} | p{3cm} |} 
 \hline
 Model & Parameters & Dataset & Task \\ \hline
 RESNET-50 & 25,583,592 & ImageNet-1k & MoCo v2 \\ \hline
-VGG16 &  138,357,544 & CIFAR-100 & None \\ \hline
-Inception v4 & 42,711,400 & ImageNet-1k & MoCo v2\\ \hline
-Transformer & 0 & Multiple & GLUE \\ \hline
-RoBERTa-Large & 0 & Multiple & GLUE \\ \hline
+VGG16 &  138,357,544 & CIFAR-10 & None \\ \hline
+Inception v4 & 42,711,400 & CIFAR-100 & None\\ \hline
+%Transformer & 0 & Multiple & GLUE \\ \hline
+%RoBERTa-Large & 0 & Multiple & GLUE \\ \hline
 \end{tabular}
 \end{center}
-\subsubsection{testing methods}
-We start 
+
 
 \section{Results}
+We start by calculating a theoretical minimum training time. 
+
 \section{Conclusion}
  
 
