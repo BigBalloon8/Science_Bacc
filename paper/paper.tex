@@ -1,7 +1,7 @@
 \documentclass[11pt]{article}
 \usepackage[margin=1in]{geometry}
 \usepackage[parfill]{parskip}
-\usepackage{amsmath, amsfonts,tabularx}
+\usepackage{amsmath, amsfonts,tabularx,graphicx, subfigure}
 \title{Improving the Performance of Data Parallelism \\Over a Low Bandwidth Distributed }
 \author{Christopher Rae \\ \begin{small} email: 110641877@ea.edin.sch.uk \end{small}}
 
@@ -11,15 +11,15 @@
 
 \begin{document}
 \maketitle
-\tableofcontents
-\newpage
+
 
 \begin{abstract}
 There is no doubt that networking is a bottleneck when training neural networks across multiple nodes. Having a low bandwidth or a high delay in time it takes for data to be transferred between nodes can drastically increase training time of a neural network. It has become industry standard to use fast networking with bandwidths of up to 100Gbps this makes the requirements for training across multiple nodes very expensive. \\
 2. Research methods\\
 3. is viable
 \end{abstract}
-
+\tableofcontents
+\newpage
 
 \section{Introduction}
 Distributed data parallelism is a widely used technique for training artificial intelligence (AI) models, especially when working with large datasets. It involves dividing the data across multiple nodes and training multiple copies of the model in parallel, which can significantly reduce the time required for training. However, the efficiency of this technique can be affected by several factors, including the bandwidth of the communication channels between the nodes.
@@ -74,7 +74,7 @@ Gradient quantization is a technique used in distributed data parallelism to red
 
 A model parameter is usually stored in memory as a 32bit floating point. There are $7, 800, 000, 000,\\ 000, 000,000,000,000,000,000,000,000,000,000,000,000,000,000$(38zeros) unique float32 numbers, but that said numbers like $0.000100$, $0.000101$ and $0.000102$ are very close. We can approximate these to number to be equal, this is the core concept of quantization. When we calculate 
 
-If you have a vector $a \in \mathbb{R}^d$ where $a \sim \mathcal{N}(0.1,0.55)$ where we know the $\max a$ and $\min a$. We can split $a$ into equal size bins and represent each bin with either a 8bit or 16bit integer. For example, suppose we have a set of 100 bins, each representing a range of gradient values. If the gradient value for a particular parameter falls within the range of the first bin, it will be represented as a 1; if it falls within the range of the second bin, it will be represented as a 2; and so on. Then once it has been sent to the second node the node can look up what values the bin represents and replaces it with the excepted value of that bin. This allows us to represent each gradient value using a single integer, rather than a floating-point value, which can significantly reduce the amount of memory required to store gradients. The difference between using 8bit or 16bit integer is the number of bins, which effect not only the accuracy of the data but how much data is sent over the network. If we use 16 bit integers there can be 65,536 bins where as with 8bit there is only 256 which is a significant reduction.
+If you have a vector $a \in \mathbb{R}^d$ where $a \sim \mathcal{N}(0.1,0.55)$ where we know the $\max a$ and $\min a$. We can split $a$ into equal size bins and represent each bin with either a 8bit or 16bit integer. For example, suppose we have a set of 100 bins, each representing a range of gradient values. If the gradient of a particular parameter falls within the range of the first bin, it will be represented as a 1; if it falls within the range of the second bin, it will be represented as a 2; and so on. Then once it has been sent to the second node the node can look up what values the bin represents and replaces it with the excepted value of that bin. This allows us to represent each gradient value using a single integer, rather than a floating-point value, which can significantly reduce the amount of memory required to store gradients. The difference between using 8bit or 16bit integer is the number of bins, which effect not only the accuracy of the data but how much data is sent over the network. If we use 16 bit integers there can be 65,536 bins where as with 8bit there is only 256 which is a significant reduction.
 
 As mentioned above $a \sim \mathcal{N}(0.1,0.55)$ this tells us that that most of the values will be located around $0.1$ which means it may be more representative of $a$ if the there are more bins located around the mean than $\max a$ and $\min a$ so bins near the mean cover a lower range of values meaning they are occur at a higher frequency, bins closer to the min and the max cover a larger range of values. This type of quantization is called non-linear quantization.
 
@@ -171,10 +171,10 @@ Within our test we use a range of different models. The most important factor wh
 \begin{center}
 \begin{tabular}{| p{3cm} | p{3cm} | p{3cm} | p{3cm} |} 
 \hline
-Model & Parameters & Dataset & Task \\ \hline
-RESNET-50 & 25,583,592 & ImageNet-1k & MoCo v2 \\ \hline
-VGG16 &  138,357,544 & CIFAR-10 & None \\ \hline
-Inception v4 & 42,711,400 & CIFAR-100 & None\\ \hline
+Model & No. Parameters &  Gradeint Physical Size (MB)\\ \hline
+RESNET-50 & 25,583,592 &  94.1 \\ \hline
+VGG16 &  138,357,544 &  428.2 \\ \hline
+Inception v4 & 42,608,450 &  170.2\\ \hline
 %Transformer & 0 & Multiple & GLUE \\ \hline
 %RoBERTa-Large & 0 & Multiple & GLUE \\ \hline
 \end{tabular}
@@ -183,6 +183,36 @@ Inception v4 & 42,711,400 & CIFAR-100 & None\\ \hline
 
 \section{Results}
 We start by calculating a theoretical minimum training time. 
+\begin{figure}[h]
+  \centering
+  \subfigure[\begin{small}The Mean Time to Train 1 Epoch on 1 P100 GPU \end{small}]{
+  \includegraphics[width=6cm]{models.png}
+  }
+  \subfigure[ The Theoretical Time to Send Gradients]{
+  \includegraphics[width=6cm]{gradientTimes.png}  
+  }
+  \caption{\begin{small} a \& b \end{small}}
+\end{figure}
+
+In an ideal world training speed would increase linearly with the number of GPUs you have training the model. In our test to determine the results of Figure 1 (a) we train each model with a $B_k$ (batch size) of 32 and on the cifar 100 dataset of which we use 50000 images for training, this means that there are just under 1600 iterations in a single epoch. Figure 1(b) is determined by the size of the model divided by the speed of the network.
+
+\subsection{8 GPUs Theoretical}
+In out result we plan to compare the theoretical with the applied. The data is evenly split between each node in this case 8 GPUs  each on separate nodes, translating to each node training with a sample of 6250 images. By increasing the number of nodes from 1 to 8 we reduces the number of communication steps per epoch(and iterations) to around 200 but there is also more data sent in each communication step as each node is sending its own gradients to 8 other nodes. 
+
+If each node was to individually send its gradients to all the other node, there would be 56 ($N(N-1)$ where $N$ is the number of nodes) separate messages sent between nodes, if it was worst case scenario where you are training VGG16 on 100MBps you would have around 4 minutes of time waiting for the communication per epoch. This is cause by only 1 node sending data at a time due to the networks constraints but as we use a more efficient ring all reduce algorithm, we should have communication times similar to what is shown in Figure 1 (b)
+
+\subsubsection{Quantization}
+We plan to use 8bit quantization using both non-linear and block-wise techniques. non-linear quantization doesn't effect bandwidth it just helps to reduce variance. Block-wise allows us to decrease the gradients size by a factor of 4 but adds $\frac{p}{2048}\times 256$ float16 numbers on top of the in order to undo the quantization.
+
+
+
+\subsection{8 GPUS Applied}
+\begin{Huge}
+\begin{center}
+COULD NOT ACCESS A COMPUTER
+\end{center}
+\end{Huge}
+
 
 \section{Conclusion}
  
