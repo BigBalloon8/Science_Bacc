@@ -41,17 +41,18 @@ Here is an overview of the process:
 \begin{enumerate}
 	\item First, the data and model are partitioned or "split" across the GPUs and computers in 			  the cluster. This is typically done by dividing the data into smaller chunks and 	  				   assigning each chunk to a GPU or computer in the cluster.
 	\item Next, the training process begins. On each GPU or computer in the cluster, the model 				  processes the data assigned to it and computes the gradients of the loss function with 		  respect to the model parameters.
+	\newpage
 	\item The gradients computed on each GPU or computer are then averaged together, and the 				  model parameters are updated using this average gradient. This process is known as 				  "gradient averaging" or "gradient synchronization."
 	\item The process is then repeated, with each GPU or computer processing its assigned data 				  and computing gradients, until the model has been trained.
 \end{enumerate}
 
-By training the model in this way, the computation is distributed across multiple GPUs and computers, which can significantly reduce the time it takes to train the model. However, it also adds complexity to the training process, as the gradients must be averaged across the GPUs and computers and the model parameters must be kept consistent across the cluster. There are multiple ways of preforming this gradient averaging depending on the architecture of your GPUs and computers. In this paper we work with a synchronous architecture(all GPUs have roughly the same compute power) for simplicity, but there is also the argument of a centralised versus decentralised topology.
+By training the model in this way, the computation is distributed across multiple GPUs and computers, which can significantly reduce the time it takes to train the model. However, it also adds complexity to the training process, as the gradients must be averaged across the GPUs and computers and the model parameters must be kept consistent across the cluster. There are multiple ways of preforming this gradient averaging depending on the architecture of your GPUs and computers. In this paper we work with a synchronous architecture for simplicity and as all of our GPUs have roughly the same compute power. There is also the argument of a centralised versus a decentralised topology.
 
 In a centralized topology, the process of gradient averaging or gradient synchronization in step 3 of the distributed data parallelism process is typically performed on a central server or "parameter server." This is done by sending the gradients computed on each GPU or computer in the cluster to the central server, where they are averaged together and the model parameters are updated.
 
 In a decentralized topology, the process of gradient averaging or gradient synchronization is performed in a decentralized manner, without the use of a central server or parameter server. This can be done using a number of different techniques, such as peer-to-peer communication or gossip protocols.
 
-We find in this paper ---INSERT LINK--- that decentralized topology's are effected less by low bandwidths, and that is why we implement a decentralized architecture in our papers. To be more specific, we use our own implementation of the Baidu Ring AllReduce algorithm to average our gradients.
+We find in this paper ---INSERT LINK--- that decentralized topology's are effected less by low bandwidths, and that is why we implement a decentralized architecture in our paper. To be more specific, we use our own implementation of the Baidu Ring AllReduce algorithm to average our gradients.
 
 \subsection{SGD}
 
@@ -60,7 +61,7 @@ $$
 \min_w f
 (w) = \frac{1}{n} \sum^n_{i=1}L(w,x_i)
 $$
-Where $L$ is the loss function. We typically use a an algorithm such as stochastic gradient descent(SGD) to solve the equation above. In which we need to calculate the unbiased stochastic gradients of $f$ at time step $t$ which satisfies $\mathbb{E}[g_t(w)] = {\nabla} L_t(w)$. SGD written as:
+Where $L$ is the loss function. We typically use an algorithm such as stochastic gradient descent(SGD) to solve the equation above. In which we need to calculate the unbiased stochastic gradients of $f$ at time step $t$ which satisfies $\mathbb{E}[g_t(w)] = {\nabla} L_t(w)$. SGD can be written as:
 
 $$
 w_{t+1} = w_t - \eta g_t(w_t)
@@ -72,18 +73,17 @@ Where $g_t(w_t)$ is an estimate for the actual gradient ${\nabla} L_t(w_t)$ and 
 \subsection{Gradient Quantization}
 Gradient quantization is a technique used in distributed data parallelism to reduce the amount of data that needs to be transmitted over channels during training. It works by reducing the precision of the gradients that are transmitted between worker nodes.
 
-A model parameter is usually stored in memory as a 32bit floating point. There are $7, 800, 000, 000,\\ 000, 000,000,000,000,000,000,000,000,000,000,000,000,000,000$(38zeros) unique float32 numbers, but that said numbers like $0.000100$, $0.000101$ and $0.000102$ are very close. We can approximate these to number to be equal, this is the core concept of quantization. When we calculate 
+A model parameter is usually stored in memory as a 32bit floating point. There are $7, 800, 000, 000,\\ 000, 000,000,000,000,000,000,000,000,000,000,000,000,000,000$(38zeros) unique 32bit floating points, but that said 32bit floating points like $0.000100$, $0.000101$ and $0.000102$ are very close. We can approximate these numbers to be equal, this is the core concept of quantization.
 
-If you have a vector $a \in \mathbb{R}^d$ where $a \sim \mathcal{N}(0.1,0.55)$ where we know the $\max a$ and $\min a$. We can split $a$ into equal size bins and represent each bin with either a 8bit or 16bit integer. For example, suppose we have a set of 100 bins, each representing a range of gradient values. If the gradient of a particular parameter falls within the range of the first bin, it will be represented as a 1; if it falls within the range of the second bin, it will be represented as a 2; and so on. Then once it has been sent to the second node the node can look up what values the bin represents and replaces it with the excepted value of that bin. This allows us to represent each gradient value using a single integer, rather than a floating-point value, which can significantly reduce the amount of memory required to store gradients. The difference between using 8bit or 16bit integer is the number of bins, which effect not only the accuracy of the data but how much data is sent over the network. If we use 16 bit integers there can be 65,536 bins where as with 8bit there is only 256 which is a significant reduction.
+If you have a vector $a \in \mathbb{R}^d$ where $a \sim \mathcal{N}(0.1,0.55)$ where we know the $\max a$ and $\min a$. We can split $a$ into equal size bins and represent each bin with either a 8bit or 16bit integer. For example, suppose we have a set of 100 bins, each representing a range of gradient values. If the gradient of a particular parameter falls within the range of the first bin, it will be represented as a 1; if it falls within the range of the second bin, it will be represented as a 2; and so on. Then once the quantized $a$ has been sent to another node that node can look up what values the bin represents and replaces all the gradients in the bin with that value. This allows us to represent each gradient value using a single integer, rather than a floating-point value, which can significantly reduce the amount of bandwidth required to when sending gradients. The difference between using 8bit or 16bit integer is the number of bins, which effect not only the accuracy of the data but how much data is sent over the network. If we use 16 bit integers there can be 65,536 bins where as with 8bit there is only 256 which is a significant reduction.
 
-As mentioned above $a \sim \mathcal{N}(0.1,0.55)$ this tells us that that most of the values will be located around $0.1$ which means it may be more representative of $a$ if the there are more bins located around the mean than $\max a$ and $\min a$ so bins near the mean cover a lower range of values meaning they are occur at a higher frequency, bins closer to the min and the max cover a larger range of values. This type of quantization is called non-linear quantization.
+\subsubsection{Non-Linear Quantization}
 
-Modern models can contain billions of trainable parameters, which translates to billions of gradients. If we represent all of those gradient as 256 different integers we loose a lot of accuracy so what we do is we split gradients into chunks of around 2000 values and quantize each chunk separately this means that the first bin in the first chunk might cover a different ranges of values to the first bin in the second chunk. there are a few reasons for this, the first being that it allows us to use 8bit integers without a significant loss in accuracy, the second being that we can allocate each chunk to a specific GPU core. If one of the values in $a$ is $7$ this is a clear outlier this will effect one of the bins causing 1 bin to be wasted because of single outlier. By splitting up the data into chunks only a hand full of chunks will be effected by outliers. This type of quantization is called block-wise quantization.
+As mentioned above $a \sim \mathcal{N}(0.1,0.55)$ this tells us that that most of the values will be located around $0.1$ which means it may be more representative of $a$ if the there are more bins located around the mean than $\max a$ and $\min a$ so bins near the mean cover a lower range of values meaning they are occur at a higher frequency, bins closer to the min and the max cover a larger range of values. Instead of all the bins covering an equal range of values at a common interval each bin will contian an equal range of values(if you have 200 gradients and 10 bins each bin will contain 20 gradients). This value assigned to the the bin is the mean of the values in the bin.
 
+\subsubsection{Block-Wise Quantization}
 
-\subsubsection{Formula}
-
-
+Modern models can contain billions of trainable parameters, which translates to billions of gradients. If we represent all of those gradient as 256 different integers we loose a lot of accuracy and make it alot harder for the model to converge, so what we do is we split gradients into chunks of around 2000 or 4000 items(depending on the size of the model) and quantize each chunk separately this means that the first bin in the first chunk might cover a different ranges of values to the first bin in the second chunk. there are a few reasons for this, the first being that it allows us to use 8bit integers without a significant loss in accuracy, the second being that we can allocate each chunk to a specific GPU core makeing the quantixzation step alot faster. If one of the values in $a$ was $7$ it is a clear outlier, this will effect one of the bins causing 1 bin to be wasted because of single outlier. By splitting up the data into chunks only a one of chunks would be effected by this outliers.
 
 
 \subsection{Gradient Sparsification}
@@ -92,15 +92,15 @@ Gradient sparsification is a technique that involves identifying and removing "z
 In order to perform gradient sparsification we have to decide on a threshold to determine whether or not a gradient is a zero gradient or not, if the gradient is less than the threshold then it it deemed a zero gradient. In our implementation of gradient sparsification we accumulate zero gradients locally and sum them with gradients from the next iteration. 
 
 \subsubsection{Formula}
-We denote sparsified gradients as $S(g, Z_t)$. We have to remember that $g \in \mathbb{R}^d$ so we let $g_i$ be the $i$-th component of the vector ($g=[g_1,\ldots,g_d]$). $Z$ is a vector with the same shape a $g$, when the $w$ is initialized at the start of the training process $Z_i = 0$. The function $S$ has 2 outputs the first being the new representation of the gradient of the weights at $t$, $v$ and the second being the accumulated gradients $Z_{t+1}$ 
+We denote sparsified gradients as $S(g, Z_t)$. We have to remember that $g \in \mathbb{R}^d$ so we let $g_i$ be the $i$-th component of the vector ($g=[g_1,\ldots,g_d]$). $Z \in \mathbb{R}^d$ is a vector with the same shape a $g$, when the $w$ is initialized at the start of the training process $Z_{0,i} = 0$. The function $S$ has 2 outputs the first being $v$ the new representation of the gradient of the weights at iteration $t$, and the second being the accumulated gradients $Z_{t+1}$
 
 Sparsification of the gradients is shown as follows: 
 $$
 v_{t,i} =
 \left\{
 	\begin{array}{cc}
-		0 & \quad g_i + Z_{t,i}<\alpha \\
-		g_i + Z_{t,i}	& \quad g_i + Z_{t,i} \geq \alpha
+		0 & \quad \left| g_i + Z_{t,i}\right| < \alpha \\
+		g_i + Z_{t,i} & \quad \left| g_i + Z_{t,i}\right| \geq \alpha
 	\end{array}
 \right\}
 $$
@@ -108,8 +108,8 @@ $$
 Z_{t+1,i} =
 \left\{
 	\begin{array}{cc}
-		Z_{t,i} + g_i & \quad g_i + Z_{t,i}<\alpha \\
-		0	& \quad g_i + Z_{t,i} \geq \alpha
+		Z_{t,i} + g_i & \quad \left| g_i + Z_{t,i}\right| < \alpha \\
+		0	& \quad \left| g_i + Z_{t,i}\right| \geq \alpha
 	\end{array}
 \right\}
 $$
@@ -136,9 +136,9 @@ Another negative effect of large batch sizes is that they can lead to a decrease
 
 Furthermore, using large batch sizes can lead to an increase in the amount of memory required to store and process the data. This can be a problem for systems with limited memory or for models with a large number of parameters, as the large batch sizes may not fit in memory.
 
-One way to counteract the second point is to increase the learning rate $\eta$ so that the magnitude of the SGD updates are increased this usually works for a few of epochs but after a while has a limited effect. We plan to use a dynamic batch size. At the start of training a batch size is determined and the test error is calculated from the models untrained parameters. After each epoch the the the test error is check once the test error is half of the original the batch size is then doubled, once the test error has quartered the batch size is doubled again batch.
+One way to counteract the second point is to increase the learning rate $\eta$ so that the magnitude of the SGD updates are increased this usually works for a few of epochs but after a while has a limited effect. We plan to use a dynamic batch size. At the start of training a an inital batch size is determined, and the primary test error is calculated from the models untrained parameters. After each epoch the the the test error is checked, once the test error is half of the primary test error the batch size gets doubled, once the test error is a quarter of the primary teset error the batch size is doubled again batch.
 
-Another way which we can reduce the ngative effect of a lrge batch size is to use a optimizer algorithm other than SGD such as Adam. Adam (Adaptive Moment Estimation) is an optimization algorithm. It is an extension of the stochastic gradient descent (SGD) algorithm and combines the benefits of SGD with the benefits of other adaptive optimization algorithms such as RMSprop. 
+Another way which we can reduce the negative effect of a large batch size is to use a differnet optimizer algorithm to SGD such as Adam. Adam (Adaptive Moment Estimation) is an optimization algorithm. It is an extension of the stochastic gradient descent (SGD) algorithm and combines the benefits of SGD with the benefits of other adaptive optimization algorithms such as RMSprop. 
 
 One way that Adam helps to reduce the negative effects of using a large batch size is by using an adaptive learning rate. Adam maintains an exponential moving average of the gradients and the squared gradients, which it uses to compute an adaptive learning rate for each parameter. This adaptive learning rate is then used to update the parameters of the model, rather than using a fixed learning rate as in SGD. 
 
@@ -146,12 +146,10 @@ By using an adaptive learning rate, Adam is able to make more aggressive updates
  
 In addition to using an adaptive learning rate, Adam also incorporates momentum into the optimization process. This helps the model to continue making progress even when it encounters noisy or oscillating gradients although this doesn't have an effect on the low bandwidth.
 
-
-
 \subsubsection{Formula for the Dynamic Batch Size}
 
 Let $E_e$ be the test error function at epoch $e$ which takes the parameters $w_t$ which is the model parameters at the time step $t$ at the start of epoch $e$. Let $b$ be the initial batch size and where      $\beta$ is the maximum batch size.  
-\newpage
+
 \begingroup
 \Large
 $$
@@ -162,7 +160,7 @@ B_k = \min \left(\beta,b\varepsilon\right)
 $$
 \endgroup
 
-These equation explain dynamic batch sizing. first the scaling factor $\varepsilon$ is calculated by 2 to the power of the initial train error divided by the train error at epoch $e$ floored and subtracted by 1, we make sure that value is greater than 1 as if for some reason $E_0(w_0,x_R) < E_e(w_t, x_R)$ the batch size would decrease which is not what we want. Then its just a case of multiplying $b$ by your scaling factor    $\varepsilon$ and check to see if its greater than $\beta$. Please not that using the output of a loss function in stead of the test error is sufficient.
+These equation explain dynamic batch sizing. First the scaling factor $\varepsilon$ where $E_0(w_0,x_R)$ is the primary test error, we make sure that value of $\varepsilon$ is greater than 1 as if for some reason $E_0(w_0,x_R) < E_e(w_t, x_R)$ the batch size would decrease which is not what we want. Then its just a case of multiplying $b$ by your scaling factor $\varepsilon$ and checking to see if its greater than $\beta$. Please not that using the output of a loss function in stead of the test error is sufficient.
 
 
 \subsection{Models}
@@ -197,12 +195,15 @@ We start by calculating a theoretical minimum training time.
 In an ideal world training speed would increase linearly with the number of GPUs you have training the model. In our test to determine the results of Figure 1 (a) we train each model with a $B_k$ (batch size) of 32 and on the cifar 100 dataset of which we use 50000 images for training, this means that there are just under 1600 iterations in a single epoch. Figure 1(b) is determined by the size of the model divided by the speed of the network.
 
 \subsection{8 GPUs Theoretical}
-In out result we plan to compare the theoretical with the applied. The data is evenly split between each node in this case 8 GPUs  each on separate nodes, translating to each node training with a sample of 6250 images. By increasing the number of nodes from 1 to 8 we reduces the number of communication steps per epoch(and iterations) to around 200 but there is also more data sent in each communication step as each node is sending its own gradients to 8 other nodes. 
+In out result we plan to compare the theoretical with the applied.In this case 8 GPUs were each node has 1 GPU, the data is evenly split between each node translating to each node training with a sample of 6250 images. By increasing the number of nodes from 1 to 8 we reduces the number of communication steps per epoch(and iterations) to around 200 but there is also more data sent in each communication step as each node is sending its own gradients to 8 other nodes. 
 
-If each node was to individually send its gradients to all the other node, there would be 56 ($N(N-1)$ where $N$ is the number of nodes) separate messages sent between nodes, if it was worst case scenario where you are training VGG16 on 100MBps you would have around 4 minutes of time waiting for the communication per epoch. This is cause by only 1 node sending data at a time due to the networks constraints but as we use a more efficient ring all reduce algorithm, we should have communication times similar to what is shown in Figure 1 (b)
+If each node was to individually send its gradients to all the other node, there would be 56 ($N(N-1)$ where $N$ is the number of nodes) separate messages sent between nodes, if we were dealing with the worst case scenario where you are training VGG16 on 100MBps you would have around 4 minutes of communication per epoch. This is cause by only 1 node sending data at a time while the rest of the nodes are idol caused by the networks constraints. As we are using a more efficient ring all reduce algorithm, we should have communication times similar to what is shown in Figure 1 (b)
 
 \subsubsection{Quantization}
-We plan to use 8bit quantization using both non-linear and block-wise techniques. non-linear quantization doesn't effect bandwidth it just helps to reduce variance. Block-wise allows us to decrease the gradients size by a factor of 4 but adds $\frac{p}{2048}\times 256$ float16 numbers on top of the in order to undo the quantization.
+We plan to use 8bit quantization using both non-linear and block-wise techniques. non-linear quantization doesn't effect bandwidth it just helps to reduce variance. Block-wise allows us to decrease the gradients size by a factor of 4 but adds $\frac{p}{k}\times 256$ float16 numbers on top of the quatized gradients in order to undo the quantization where $p$ is the number of parameters and $k$ is the value that determines the number of block usually 2048 or 4096. For the example of vgg16 you decrease the graidents to around 110 MB in size but add an extra size of 8,000,000 32 bit floating points.
+
+\subsection{Quatization}
+
 
 
 
