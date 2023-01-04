@@ -2,8 +2,8 @@
 \usepackage[margin=1in]{geometry}
 \usepackage[parfill]{parskip}
 \usepackage{amsmath, amsfonts,tabularx,graphicx, subfigure}
-\title{Improving the Performance of Data Parallelism \\Over a Low Bandwidth Distributed }
-\author{Christopher Rae \\ \begin{small} email: 110641877@ea.edin.sch.uk \end{small}}
+\title{Improving the Performance of Distributed Data Parallelism \\Over a Low Bandwidth}
+\author{Christopher Rae \\ \begin{small} email: raecd123@gmail.com \end{small}}
 
 \date{}
 
@@ -183,7 +183,7 @@ Inception v4 & 42,608,450 &  170.2\\ \hline
 We start by calculating a theoretical minimum training time. 
 \begin{figure}[h]
   \centering
-  \subfigure[\begin{small}The Mean Time to Train 1 Epoch on 1 P100 GPU \end{small}]{
+  \subfigure[\begin{small}Training 1 Epoch on 1 P100 GPU \end{small}]{
   \includegraphics[width=6cm]{models.png}
   }
   \subfigure[ The Theoretical Time to Send Gradients]{
@@ -199,12 +199,19 @@ In out result we plan to compare the theoretical with the applied.In this case 8
 
 If each node was to individually send its gradients to all the other node, there would be 56 ($N(N-1)$ where $N$ is the number of nodes) separate messages sent between nodes, if we were dealing with the worst case scenario where you are training VGG16 on 100MBps you would have around 4 minutes of communication per epoch. This is cause by only 1 node sending data at a time while the rest of the nodes are idol caused by the networks constraints. As we are using a more efficient ring all reduce algorithm, we should have communication times similar to what is shown in Figure 1 (b)
 
-\subsubsection{Quantization}
 We plan to use 8bit quantization using both non-linear and block-wise techniques. non-linear quantization doesn't effect bandwidth it just helps to reduce variance. Block-wise allows us to decrease the gradients size by a factor of 4 but adds $\frac{p}{k}\times 256$ float16 numbers on top of the quatized gradients in order to undo the quantization where $p$ is the number of parameters and $k$ is the value that determines the number of block usually 2048 or 4096. For the example of vgg16 you decrease the graidents to around 110 MB in size but add an extra size of 8,000,000 32 bit floating points.
 
-\subsection{Quatization}
+When using sparsification with quantization, sparsification occours before quantization and quantizaion only occours on the non zero grads.
 
+\begin{figure}[h]
+	\centering
+	\includegraphics[width=7cm]{zeroGrads.png}
+	\caption{\begin{small} Percentage of Zeros Grads in the First Epoch\end{small}}
+\end{figure}
 
+We see that as the model gets closer to converging the number of zero grads increases, the graph also shows us that when we have a threshold of 0.00001 we drop over 80\% of our gradients this seems like it would have a large effect on the training process this is something we will address in our applied section of the results. If we drop 80\% that would also mean you are only sending 20\% of gradients being sent between nodes over the network, on a network with a low bandwidth.
+
+By doubling the batch size you should half the communication time as there half as many communication step taking place in an epoch. Whilest using a dynamic batch size it can take quite a long time before the batch size doubles as the it takes multiple epoch before the train error halfs.
 
 
 \subsection{8 GPUS Applied}
