@@ -1,13 +1,15 @@
 \documentclass[11pt]{article}
 \usepackage[margin=1in]{geometry}
 \usepackage[parfill]{parskip}
-\usepackage{amsmath, amsfonts,tabularx,graphicx, subfigure}
-\title{Improving the Performance of Distributed Data Parallelism \\Over a Low Bandwidth}
+\usepackage{amsmath, amsfonts,tabularx,graphicx, subfigure, mathtools}
+\title{Improving the Performance of Distributed Data Parallelism \\Over Low Communication  Bandwidths}
 \author{Christopher Rae \\ \begin{small} email: raecd123@gmail.com \end{small}}
 
 \date{}
 
 %\newcommand{\textify}[1]{\text{\begin{scriptsize}#1\end{scriptsize}}}
+\DeclarePairedDelimiter\norm{\lVert}{\rVert}
+
 
 \begin{document}
 \maketitle
@@ -50,7 +52,7 @@ In a centralized topology, the process of gradient averaging or gradient synchro
 
 In a decentralized topology, the process of gradient averaging or gradient synchronization is performed in a decentralized manner, without the use of a central server or parameter server. This can be done using a number of different techniques, such as peer-to-peer communication or gossip protocols.
 
-We find in this paper ---INSERT LINK--- that decentralized topology's are effected less by low bandwidths, and that is why we implement a decentralized architecture in our paper. To be more specific, we use our own implementation of the Baidu Ring AllReduce algorithm to average our gradients.
+We find in this paper \cite{lian2017can} that decentralized topology's are effected less by low bandwidths, and that is why we implement a decentralized architecture in our paper. To be more specific, we use our own implementation of the Baidu Ring AllReduce algorithm to average our gradients.
 
 \subsection{SGD}
 
@@ -59,13 +61,13 @@ $$
 \min_w f
 (w) = \frac{1}{n} \sum^n_{i=1}L(w,x_i)
 $$
-Where $L$ is the loss function. We typically use an algorithm such as stochastic gradient descent(SGD) to solve the equation above. In which we need to calculate the unbiased stochastic gradients of $f$ at time step $t$ which satisfies $\mathbb{E}[g_t(w)] = {\nabla} L_t(w)$. SGD can be written as:
+Where $L$ is the loss function. We typically use an algorithm such as stochastic gradient descent(SGD) to solve the equation above. In which we need to calculate the unbiased stochastic gradients of $f$ at time step $t$ which satisfies $\mathbb{E}[g_t(w_{t-1})] = {\nabla} L(w_{t-1})$. SGD can be written as:
 
 $$
-w_{t+1} = w_t - \eta g_t(w_t)
+w_{t} = w_{t-1} - \eta g_t(w_{t-1})
 $$
 
-Where $g_t(w_t)$ is an estimate for the actual gradient ${\nabla} L_t(w_t)$ and $\eta$ is the learning rate. For simplicity we'll let $g$ represent $g_t(w_t)$. The convergence of SGD is largely influenced by the variance of $g$. In most implementations of distributed parallelism it is $g$ which is averaged between all of the replicas.
+Where $g_t(w_{t-1})$ is an estimate for the actual gradient ${\nabla} L_t(w_t)$ and $\eta$ is the learning rate. For simplicity we'll let $g$ represent $g_t(w_t)$. The convergence of SGD is largely influenced by the variance of $g$. In most implementations of distributed parallelism it is $g$ which is averaged between all of the replicas.
 
 
 \subsection{Gradient Quantization}
@@ -97,17 +99,17 @@ $$
 v_{t,i} =
 \left\{
 	\begin{array}{cc}
-		0 & \quad \left| g_i + Z_{t,i}\right| < \alpha \\
-		g_i + Z_{t,i} & \quad \left| g_i + Z_{t,i}\right| \geq \alpha
+		0 & \quad \left| g_i + Z_{t-1,i}\right| < \alpha \\
+		g_i + Z_{t-1,i} & \quad \left| g_i + Z_{t-1,i}\right| \geq \alpha
 	\end{array}
 \right\}
 $$
 $$
-Z_{t+1,i} =
+Z_{t,i} =
 \left\{
 	\begin{array}{cc}
-		Z_{t,i} + g_i & \quad \left| g_i + Z_{t,i}\right| < \alpha \\
-		0	& \quad \left| g_i + Z_{t,i}\right| \geq \alpha
+		Z_{t-1,i} + g_i & \quad \left| g_i + Z_{t-1,i}\right| < \alpha \\
+		0	& \quad \left| g_i + Z_{t-1,i}\right| \geq \alpha
 	\end{array}
 \right\}
 $$
@@ -116,13 +118,13 @@ where $\alpha$ is the the threshold.
 
 
 \subsection{Larger Batch Sizes}
-In machine learning, the batch size refers to the number of samples that will be processed before the model's weights are updated. The batch size is a hyper parameter that can be chosen when training a model. When using a batch size the SGD algorithm becomes mini-batch SGD it looks something like this:
+In machine learning, we have the concept of batch sizes this can be thought of as the number of samples that will be processed before the model's weights are updated. The batch size is a hyper parameter that can be chosen when training a model. When using a batch size the SGD algorithm becomes mini-batch SGD it looks something like this:
 
 $$
-g = \frac{1}{B_k} \sum_{i=1}^{B_k} {\nabla} L(w_t)
+g_{t-1} = \frac{1}{B_k} \sum_{i=1}^{B_k} {\nabla} L(w_{t-1})
 $$
 $$
-w_{t+1} = w_t - \eta g
+w_{t} = w_{t-1} - \eta g_{t}
 $$ 
 
 
@@ -134,27 +136,59 @@ Another negative effect of large batch sizes is that they can lead to a decrease
 
 Furthermore, using large batch sizes can lead to an increase in the amount of memory required to store and process the data. This can be a problem for systems with limited memory or for models with a large number of parameters, as the large batch sizes may not fit in memory.
 
-One way to counteract the second point is to increase the learning rate $\eta$ so that the magnitude of the SGD updates are increased this usually works for a few of epochs but after a while has a limited effect. We plan to use a dynamic batch size. At the start of training a an initial batch size is determined, and the primary test error is calculated from the models untrained parameters. After each epoch the the the test error is checked, once the test error is half of the primary test error the batch size gets doubled, once the test error is a quarter of the primary test error the batch size is doubled again batch.
+One way to counteract the second point is to increase the learning rate $\eta$ so that the magnitude of the SGD updates are increased this usually works for a few of epochs but after a while has a limited effect. We plan to use a adaptive batch size \cite{devarakonda2017adabatch}. At the start of training a an initial batch size is determined, and the primary test error is calculated from the models untrained parameters. After each epoch the the the test error is checked, once the test error is half of the primary test error the batch size gets doubled, once the test error is a quarter of the primary test error the batch size is doubled again batch.
 
-Another way which we can reduce the negative effect of a large batch size is to use a different optimizer algorithm to SGD A common choice is Adam (Adaptive Moment Estimation) but adam has been found to scale poorly with large batch sizes. There are 2 optimizers that scale well with large batch sizes, LARS (Layer-wise Adaptive Rate Scaling) \& LAMB (Layer-wise Adaptive Moments for Batch Training)
+Another way which we can reduce the negative effect of a large batch size is to use a different optimizer algorithm to SGD, a common alternative is Adam (Adaptive Moment Estimation) the problem with ADAM is that ADAM has been found to scale poorly with large batch sizes. There are 2 optimizers that scale well with large batch sizes, LARS (Layer-wise Adaptive Rate Scaling) \cite{you2017scaling} \& LAMB (Layer-wise Adaptive Moments for Batch Training) \cite{you2019large}. We have chosen to use LAMB as our optimiser. 
+
+LAMB is pretty similar to ADAM. We start by computing the gradients $g_t$ at time step $t$, then much like ADAM we calculate the first $m$ and second $v$ moment of each layer $l$ using the following equations:
+\begin{equation*} \label{1mom}
+m^l_t = \beta _1 m^l_{t-1} + (1-\beta _1) g^l_t
+\end{equation*}
+\begin{equation*} \label{2mom}
+v^l_t = \beta _2 v^l_{t-1} + (1-\beta _2) g^l_t \odot g^l_t
+\end{equation*}
+Then we bias correct for both of the moments:
+\begin{equation*} \label{b1}
+\hat{m}^l_t = m^l_t /(1-\beta ^t_1)
+\end{equation*}
+\begin{equation*} \label{b2}
+\hat{v}^l_t = v^l_t /(1-\beta ^t_2)
+\end{equation*}
+
+In these equations $\beta _{1/2}$ are the coefficient of the first/second moment. After we calculate the moments we trust ratio:
+
+\begin{equation*}
+r^l_t = 1.0
+\end{equation*}
+\begin{equation*}
+r_1 = \phi(\norm{w^l_{t-1}})
+\end{equation*}
+$\phi(\parallel x \parallel)$ where $x \in \mathbb{R}^d$ is the same as doing $\sqrt{\sum^d_{i=1} x_i^2}$
+\begin{equation*}\label{r2}
+r_2= \norm[\bigg]{\frac{\hat{m}^l_t}{\sqrt{\hat{v}^l_t + \epsilon}} + \lambda w^l_{t-1}}
+\end{equation*}
+\begin{equation*}
+r^l_t =
+\left\{
+	\begin{array}{cc}
+		r_1/r_2 & \quad r_1 > 0 \text{ and } r_2 > 0 \\
+		1 & \quad r_1 < 0 \text{ or } r_" < 0
+	\end{array}
+\right\}
+\end{equation*}
+$r_1$ is the norm of the gradients and $r_2$ is the element-wise weight decay. To make sure that our value is $r^l_t$ isn’t too large or too small we have and upper and lower boundary $a$ and $b$. $\epsilon$ in equation \ref{r2} is to prevent a division by 0 error.
+
+our final step is to upgrade the parameters:
+\begin{equation*}
+w^l_t = w^l_{t-1} - \eta r^l_t  \left(\frac{\hat{m}^l_t}{\sqrt{\hat{v}^l_t + \epsilon}} 
++ \lambda w^l_{t-1}\right)
+\end{equation*}
 
 
 
-\iffalse
-such as Adam. Adam (Adaptive Moment Estimation) is an optimization algorithm. It is an extension of the stochastic gradient descent (SGD) algorithm and combines the benefits of SGD with the benefits of other adaptive optimization algorithms such as RMSprop. 
+\subsubsection{Formula for the Adaptive Batch Size}
 
-One way that Adam helps to reduce the negative effects of using a large batch size is by using an adaptive learning rate. Adam maintains an exponential moving average of the gradients and the squared gradients, which it uses to compute an adaptive learning rate for each parameter. This adaptive learning rate is then used to update the parameters of the model, rather than using a fixed learning rate as in SGD. 
-
-By using an adaptive learning rate, Adam is able to make more aggressive updates to the model's parameters when the gradients are small and make smaller updates when the gradients are large. This can help the model converge more quickly and reduce the negative effects of using a large batch size.
- 
-In addition to using an adaptive learning rate, Adam also incorporates momentum into the optimization process. This helps the model to continue making progress even when it encounters noisy or oscillating gradients although this doesn't have an effect on the low bandwidth.
-\fi
-
-
-
-\subsubsection{Formula for the Dynamic Batch Size}
-
-Let $E_e$ be the test error function at epoch $e$ which takes the parameters $w_t$ which is the model parameters at the time step $t$ at the start of epoch $e$. Let $b$ be the initial batch size and where      $\beta$ is the maximum batch size.  
+Let $E_e$ be the test error function at epoch $e$ which takes the parameters $w_t$ which is the model parameters at the time step $t$ at the start of epoch $e$. Let $b$ be the initial batch size and where $\beta$ is the maximum batch size.  
 
 \begingroup
 \Large
@@ -166,11 +200,11 @@ B_k = \min \left(\beta,b\varepsilon\right)
 $$
 \endgroup
 
-These equation explain dynamic batch sizing. First the scaling factor $\varepsilon$ where $E_0(w_0,x_R)$ is the primary test error, we make sure that value of $\varepsilon$ is greater than 1 as if for some reason $E_0(w_0,x_R) < E_e(w_t, x_R)$ the batch size would decrease which is not what we want. Then its just a case of multiplying $b$ by your scaling factor $\varepsilon$ and checking to see if its greater than $\beta$. Please not that using the output of a loss function in stead of the test error is sufficient.
+These equation explain adaptive batch sizing. First the scaling factor $\varepsilon$ where $E_0(w_0,x_R)$ is the primary test error, we make sure that value of $\varepsilon$ is greater than 1 as if for some reason $E_0(w_0,x_R) < E_e(w_t, x_R)$ the batch size would decrease which is not what we want. Then its just a case of multiplying $b$ by your scaling factor $\varepsilon$ and checking to see if its greater than $\beta$. Please not that using the output of a loss function in stead of the test error is sufficient.
 
 
 \subsection{Models}
-Within our test we use a range of different models. The most important factor when choosing a model is to make sure we get a good range of sizes between out models. These are the models we have tested:
+Within our test we use a range of different models. The most important factor when choosing a model is to make sure we get a good range of sizes between our models. These are the models we train to get results:
 
 \begin{center}
 \begin{tabular}{| p{3cm} | p{3cm} | p{3cm} | p{3cm} |} 
@@ -179,14 +213,14 @@ Model & No. Parameters &  Gradient Physical Size (MB)\\ \hline
 RESNET-50 & 25,583,592 &  94.1 \\ \hline
 VGG16 &  138,357,544 &  428.2 \\ \hline
 Inception v4 & 42,608,450 &  170.2\\ \hline
+%BERT & 109,786,368 & 
 %Transformer & 0 & Multiple & GLUE \\ \hline
 %RoBERTa-Large & 0 & Multiple & GLUE \\ \hline
 \end{tabular}
 \end{center}
 
-
+\newpage
 \section{Results}
-We start by calculating a theoretical minimum training time. 
 \begin{figure}[h]
   \centering
   \subfigure[\begin{small}Training 1 Epoch on 1 P100 GPU \end{small}]{
@@ -200,12 +234,12 @@ We start by calculating a theoretical minimum training time.
 
 In an ideal world training speed would increase linearly with the number of GPUs you have training the model. In our test to determine the results of Figure 1 (a) we train each model with a $B_k$ (batch size) of 32 and on the cifar 100 dataset of which we use 50000 images for training, this means that there are just under 1600 iterations in a single epoch. Figure 1(b) is determined by the size of the model divided by the speed of the network.
 
-\subsection{8 GPUs Theoretical}
-In out result we plan to compare the theoretical with the applied.In this case 8 GPUs were each node has 1 GPU, the data is evenly split between each node translating to each node training with a sample of 6250 images. By increasing the number of nodes from 1 to 8 we reduces the number of communication steps per epoch(and iterations) to around 200 but there is also more data sent in each communication step as each node is sending its own gradients to 8 other nodes. 
+\subsection{Baseline}
+In out result we plan to compare the theoretical with the applied.In this case 8 GPUs were each node has 1 GPU, the data is evenly split between each node translating to each node training with a sample of 6250 images. By increasing the number of nodes from 1 to 8 we reduces the number of communication steps per epoch to around 200 but there is also more data sent in each communication step as each node is sending its own gradients to 8 other nodes. 
 
-If each node was to individually send its gradients to all the other node, there would be 56 ($N(N-1)$ where $N$ is the number of nodes) separate messages sent between nodes, if we were dealing with the worst case scenario where you are training VGG16 on 100MBps you would have around 4 minutes of communication per epoch. This is cause by only 1 node sending data at a time while the rest of the nodes are idol caused by the networks constraints. As we are using a more efficient ring all reduce algorithm, we should have communication times similar to what is shown in Figure 1 (b)
+If each node was to individually send its gradients to all the other node, there would be $N(N-1)$ messages being sent between nodes, where $N$ is the number of nodes, in the case of 8 nodes that is $56$ messages. If we were dealing with our worst case scenario where you are training VGG16 on 100MBps you could take multiple hours ($4*200*56$ seconds) per epoch. This is cause by only 1 node sending data at a time while the rest of the nodes are idol caused by the networks constraints. As we are using a more efficient ring all reduce algorithm, we should have a much lower communication time than multiple hours.
 
-We plan to use 8bit quantization using both non-linear and block-wise techniques. non-linear quantization doesn't effect bandwidth it just helps to reduce variance. Block-wise allows us to decrease the gradients size by a factor of 4 but adds $\frac{p}{k}\times 256$ float16 numbers on top of the quantized gradients in order to undo the quantization where $p$ is the number of parameters and $k$ is the value that determines the number of block usually 2048 or 4096. For the example of vgg16 you decrease the gradients to around 110 MB in size but add an extra size of 8,000,000 32 bit floating points.
+We plan to use 8bit quantization using both non-linear and block-wise techniques. non-linear quantization doesn't effect bandwidth it just helps to reduce variance. Block-wise allows us to decrease the gradients size by a factor of 4 but adds $\frac{p}{k}\times 256$ float16 numbers on top of the quantized gradients in order to undo the quantization where $p$ is the number of parameters and $k$ is the value that determines the number of block usually 2048 or 4096. For the example of vgg16 you decrease the gradients to around 110 MB in size but add the additional size of an extra size of 8,000,000 32 bit floating points.
 
 When using sparsification with quantization, sparsification occurs before quantization and quantization only occurs on the non zero grads.
 
@@ -215,12 +249,12 @@ When using sparsification with quantization, sparsification occurs before quanti
 	\caption{\begin{small} Percentage of Zeros Grads in the First Epoch\end{small}}
 \end{figure}
 
-We see that as the model gets closer to converging the number of zero grads increases, the graph also shows us that when we have a threshold of 0.00001 we drop over 80\% of our gradients this seems like it would have a large effect on the training process this is something we will address in our applied section of the results. If we drop 80\% that would also mean you are only sending 20\% of gradients being sent between nodes over the network, on a network with a low bandwidth.
+We see that as the model gets closer to converging the number of zero grads increases, the graph also shows us that when we have a threshold of 0.00001 we drop over 80\% of our gradients this seems like it would have a large effect on the training process this is something we will address in our Benchmarks. If we drop 80\%, you are only sending 20\% of gradients to other  nodes.
 
-By doubling the batch size you should half the communication time as there half as many communication step taking place in an epoch. Whilst using a dynamic batch size it can take quite a long time before the batch size doubles as the it takes multiple epoch before the train error halves.
+By doubling the batch size you should half the communication time as there half as many communication step taking place in an epoch. Whilst using a adaptive batch size it can take quite a long time before the batch size doubles as the it takes multiple epoch before the train error halves.
 
 
-\subsection{8 GPUS Applied}
+\subsection{Benchmarks}
 \begin{Huge}
 \begin{center}
 COULD NOT ACCESS A COMPUTER
@@ -229,6 +263,11 @@ COULD NOT ACCESS A COMPUTER
 
 
 \section{Conclusion}
-We were not able to access a computer so were not able to validate wether the techniques we implemented had a benificial effect on the training time. 
+We were not able to access a computer so were not able to validate whether the techniques we implemented had a beneficial effect on the training time. 
+
+
+
+\bibliographystyle{plain}
+\bibliography{paperRef}
 
 \end{document}

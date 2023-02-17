@@ -1,0 +1,25 @@
+\begin{thebibliography}{1}
+
+\bibitem{devarakonda2017adabatch}
+Aditya Devarakonda, Maxim Naumov, and Michael Garland.
+\newblock Adabatch: Adaptive batch sizes for training deep neural networks.
+\newblock {\em arXiv preprint arXiv:1712.02029}, 2017.
+
+\bibitem{lian2017can}
+Xiangru Lian, Ce~Zhang, Huan Zhang, Cho-Jui Hsieh, Wei Zhang, and Ji~Liu.
+\newblock Can decentralized algorithms outperform centralized algorithms? a
+  case study for decentralized parallel stochastic gradient descent.
+\newblock {\em Advances in neural information processing systems}, 30, 2017.
+
+\bibitem{you2017scaling}
+Yang You, Igor Gitman, and Boris Ginsburg.
+\newblock Scaling sgd batch size to 32k for imagenet training, 2017.
+
+\bibitem{you2019large}
+Yang You, Jing Li, Sashank Reddi, Jonathan Hseu, Sanjiv Kumar, Srinadh
+  Bhojanapalli, Xiaodan Song, James Demmel, Kurt Keutzer, and Cho-Jui Hsieh.
+\newblock Large batch optimization for deep learning: Training bert in 76
+  minutes.
+\newblock {\em arXiv preprint arXiv:1904.00962}, 2019.
+
+\end{thebibliography}
