@@ -77,11 +77,11 @@ If you have a vector $a \in \mathbb{R}^d$ where $a \sim \mathcal{N}(0.1,0.55)$ w
 
 \subsubsection{Non-Linear Quantization}
 
-As mentioned above $a \sim \mathcal{N}(0.1,0.55)$ this tells us that that most of the values will be located around $0.1$ which means it may be more representative of $a$ if the there are more bins located around the mean than $\max a$ and $\min a$ so bins near the mean cover a lower range of values meaning they are occur at a higher frequency, bins closer to the min and the max cover a larger range of values. Instead of all the bins covering an equal range of values at a common interval each bin will contian an equal range of values(if you have 200 gradients and 10 bins each bin will contain 20 gradients). This value assigned to the the bin is the mean of the values in the bin.
+As mentioned above $a \sim \mathcal{N}(0.1,0.55)$ this tells us that that most of the values will be located around $0.1$ which means it may be more representative of $a$ if the there are more bins located around the mean than $\max a$ and $\min a$ so bins near the mean cover a lower range of values meaning they are occur at a higher frequency, bins closer to the min and the max cover a larger range of values. Instead of all the bins covering an equal range of values at a common interval each bin will contain an equal range of values(if you have 200 gradients and 10 bins each bin will contain 20 gradients). This value assigned to the the bin is the mean of the values in the bin.
 
 \subsubsection{Block-Wise Quantization}
 
-Modern models can contain billions of trainable parameters, which translates to billions of gradients. If we represent all of those gradient as 256 different integers we loose a lot of accuracy and make it alot harder for the model to converge, so what we do is we split gradients into chunks of around 2000 or 4000 items(depending on the size of the model) and quantize each chunk separately this means that the first bin in the first chunk might cover a different ranges of values to the first bin in the second chunk. there are a few reasons for this, the first being that it allows us to use 8bit integers without a significant loss in accuracy, the second being that we can allocate each chunk to a specific GPU core makeing the quantixzation step alot faster. If one of the values in $a$ was $7$ it is a clear outlier, this will effect one of the bins causing 1 bin to be wasted because of single outlier. By splitting up the data into chunks only a one of chunks would be effected by this outliers.
+Modern models can contain billions of trainable parameters, which translates to billions of gradients. If we represent all of those gradient as 256 different integers we loose a lot of accuracy and make it alot harder for the model to converge, so what we do is we split gradients into chunks of around 2000 or 4000 items(depending on the size of the model) and quantize each chunk separately this means that the first bin in the first chunk might cover a different ranges of values to the first bin in the second chunk. there are a few reasons for this, the first being that it allows us to use 8bit integers without a significant loss in accuracy, the second being that we can allocate each chunk to a specific GPU core makeing the quantization step a lot faster. If one of the values in $a$ was $7$ it is a clear outlier, this will effect one of the bins causing 1 bin to be wasted because of single outlier. By splitting up the data into chunks only a one of chunks would be effected by this outliers.
 
 
 \subsection{Gradient Sparsification}
@@ -134,15 +134,23 @@ Another negative effect of large batch sizes is that they can lead to a decrease
 
 Furthermore, using large batch sizes can lead to an increase in the amount of memory required to store and process the data. This can be a problem for systems with limited memory or for models with a large number of parameters, as the large batch sizes may not fit in memory.
 
-One way to counteract the second point is to increase the learning rate $\eta$ so that the magnitude of the SGD updates are increased this usually works for a few of epochs but after a while has a limited effect. We plan to use a dynamic batch size. At the start of training a an inital batch size is determined, and the primary test error is calculated from the models untrained parameters. After each epoch the the the test error is checked, once the test error is half of the primary test error the batch size gets doubled, once the test error is a quarter of the primary teset error the batch size is doubled again batch.
+One way to counteract the second point is to increase the learning rate $\eta$ so that the magnitude of the SGD updates are increased this usually works for a few of epochs but after a while has a limited effect. We plan to use a dynamic batch size. At the start of training a an initial batch size is determined, and the primary test error is calculated from the models untrained parameters. After each epoch the the the test error is checked, once the test error is half of the primary test error the batch size gets doubled, once the test error is a quarter of the primary test error the batch size is doubled again batch.
 
-Another way which we can reduce the negative effect of a large batch size is to use a differnet optimizer algorithm to SGD such as Adam. Adam (Adaptive Moment Estimation) is an optimization algorithm. It is an extension of the stochastic gradient descent (SGD) algorithm and combines the benefits of SGD with the benefits of other adaptive optimization algorithms such as RMSprop. 
+Another way which we can reduce the negative effect of a large batch size is to use a different optimizer algorithm to SGD A common choice is Adam (Adaptive Moment Estimation) but adam has been found to scale poorly with large batch sizes. There are 2 optimizers that scale well with large batch sizes, LARS (Layer-wise Adaptive Rate Scaling) \& LAMB (Layer-wise Adaptive Moments for Batch Training)
+
+
+
+\iffalse
+such as Adam. Adam (Adaptive Moment Estimation) is an optimization algorithm. It is an extension of the stochastic gradient descent (SGD) algorithm and combines the benefits of SGD with the benefits of other adaptive optimization algorithms such as RMSprop. 
 
 One way that Adam helps to reduce the negative effects of using a large batch size is by using an adaptive learning rate. Adam maintains an exponential moving average of the gradients and the squared gradients, which it uses to compute an adaptive learning rate for each parameter. This adaptive learning rate is then used to update the parameters of the model, rather than using a fixed learning rate as in SGD. 
 
 By using an adaptive learning rate, Adam is able to make more aggressive updates to the model's parameters when the gradients are small and make smaller updates when the gradients are large. This can help the model converge more quickly and reduce the negative effects of using a large batch size.
  
 In addition to using an adaptive learning rate, Adam also incorporates momentum into the optimization process. This helps the model to continue making progress even when it encounters noisy or oscillating gradients although this doesn't have an effect on the low bandwidth.
+\fi
+
+
 
 \subsubsection{Formula for the Dynamic Batch Size}
 
@@ -167,7 +175,7 @@ Within our test we use a range of different models. The most important factor wh
 \begin{center}
 \begin{tabular}{| p{3cm} | p{3cm} | p{3cm} | p{3cm} |} 
 \hline
-Model & No. Parameters &  Gradeint Physical Size (MB)\\ \hline
+Model & No. Parameters &  Gradient Physical Size (MB)\\ \hline
 RESNET-50 & 25,583,592 &  94.1 \\ \hline
 VGG16 &  138,357,544 &  428.2 \\ \hline
 Inception v4 & 42,608,450 &  170.2\\ \hline
