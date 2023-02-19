@@ -22,9 +22,9 @@ There is no doubt that networking is a bottleneck when training neural networks 
 \newpage
 
 \section{Introduction}
-Distributed data parallelism is a widely used technique for training artificial intelligence (AI) models, especially when working with large datasets. It involves dividing the data across multiple nodes and training multiple copies of the model in parallel, which can significantly reduce the time required for training. However, the efficiency of this technique can be affected by several factors, including the bandwidth of the communication channels between the nodes.
+Distributed data parallelism is a widely used technique for training Artificial Intelligence (AI) models, especially when working with large datasets. It involves dividing the data across multiple nodes and training multiple copies of the model in parallel, which can significantly reduce the time required for training. However, the efficiency of this technique can be affected by several factors, including the bandwidth of the communication channels between the nodes.
 
-Low WiFi bandwidths can have a significant impact on the training time of AI models using distributed data parallelism. When the communication channels between nodes have low bandwidth, it can lead to slower data transfer and synchronization between the nodes, which can result in slower training times. In addition, low WiFi bandwidths may also lead to increased latency in the communication between nodes, further diminishing the efficiency of the training process.
+Low WiFi bandwidths can have a significant impact on the training time of AI models using distributed data parallelism. When the communication channels between nodes have low bandwidth, this can lead to slower data transfer and synchronization between the nodes, which can in turn result in slower training times. In addition, low WiFi bandwidths may also lead to increased latency in the communication between nodes, further diminishing the efficiency of the training process.
 
 In this paper, we aim to explore the relationship between low WiFi bandwidths and the training time of AI models using distributed data parallelism. We will discuss the various ways in which low WiFi bandwidths can impact the communication between nodes and the overall efficiency of the training process. We will also present potential solutions for mitigating the negative effects of low WiFi bandwidths on model training time.
 
@@ -46,13 +46,15 @@ Here is an overview of the process:
 	\item The process is then repeated, with each GPU or computer processing its assigned data 				  and computing gradients, until the model has been trained.
 \end{enumerate}
 
-By training the model in this way, the computation is distributed across multiple GPUs and computers, which can significantly reduce the time it takes to train the model. However, it also adds complexity to the training process, as the gradients must be averaged across the GPUs and computers and the model parameters must be kept consistent across the cluster. There are multiple ways of preforming this gradient averaging depending on the architecture of your GPUs and computers. In this paper we work with a synchronous architecture for simplicity and as all of our GPUs have roughly the same compute power. There is also the argument of a centralised versus a decentralised topology.
+By training the model in this way, the computation is distributed across multiple GPUs and computers, which can significantly reduce the time it takes to train the model. However, it also adds complexity to the training process, as the gradients must be averaged across the GPUs and computers and the model parameters must be kept consistent across the cluster. There are multiple ways of preforming this gradient averaging depending on the architecture of your GPUs and computers. In this paper we work with a synchronous architecture for simplicity, as all of our GPUs have roughly the same compute power. There is also the argument of a centralised versus a decentralised topology.
 
 In a centralized topology, the process of gradient averaging or gradient synchronization in step 3 of the distributed data parallelism process is typically performed on a central server or "parameter server." This is done by sending the gradients computed on each GPU or computer in the cluster to the central server, where they are averaged together and the model parameters are updated.
 
 In a decentralized topology, the process of gradient averaging or gradient synchronization is performed in a decentralized manner, without the use of a central server or parameter server. This can be done using a number of different techniques, such as peer-to-peer communication or gossip protocols.
 
-We find in this paper \cite{lian2017can} that decentralized topology's are effected less by low bandwidths, and that is why we implement a decentralized architecture in our paper. To be more specific, we use our own implementation of the Baidu Ring AllReduce algorithm to average our gradients.
+We find in this paper (Lian, 2017)\cite{lian2017can} that decentralized topology's are effected less by low bandwidths, and that is why we implement a decentralized architecture in our paper. To be more specific, we use our own implementation of the Ring AllReduce algorithm \cite{gibiansky2017bringing} to average our gradients. 
+
+All of our code will be written using the JAX \cite{jax2018github} machine learning framework with MPI being used for peer-to-peer communication via the mpi4jax \cite{mpi4jax} library.
 
 \subsection{SGD}
 
@@ -61,7 +63,7 @@ $$
 \min_w f
 (w) = \frac{1}{n} \sum^n_{i=1}L(w,x_i)
 $$
-Where $L$ is the loss function. We typically use an algorithm such as stochastic gradient descent(SGD) to solve the equation above. In which we need to calculate the unbiased stochastic gradients of $f$ at time step $t$ which satisfies $\mathbb{E}[g_t(w_{t-1})] = {\nabla} L(w_{t-1})$. SGD can be written as:
+Where $L$ is the loss function. We typically use an algorithm such as Stochastic Gradient Descent(SGD) to solve the equation above. In which we need to calculate the unbiased stochastic gradients of $f$ at time step $t$ which satisfies $\mathbb{E}[g_t(w_{t-1})] = {\nabla} L(w_{t-1})$. SGD can be written as:
 
 $$
 w_{t} = w_{t-1} - \eta g_t(w_{t-1})
@@ -75,19 +77,19 @@ Gradient quantization is a technique used in distributed data parallelism to red
 
 A model parameter is usually stored in memory as a 32bit floating point. There are $7, 800, 000, 000,\\ 000, 000,000,000,000,000,000,000,000,000,000,000,000,000,000$(38zeros) unique 32bit floating points, but that said 32bit floating points like $0.000100$, $0.000101$ and $0.000102$ are very close. We can approximate these numbers to be equal, this is the core concept of quantization.
 
-If you have a vector $a \in \mathbb{R}^d$ where $a \sim \mathcal{N}(0.1,0.55)$ where we know the $\max a$ and $\min a$. We can split $a$ into equal size bins and represent each bin with either a 8bit or 16bit integer. For example, suppose we have a set of 100 bins, each representing a range of gradient values. If the gradient of a particular parameter falls within the range of the first bin, it will be represented as a 1; if it falls within the range of the second bin, it will be represented as a 2; and so on. Then once the quantized $a$ has been sent to another node that node can look up what values the bin represents and replaces all the gradients in the bin with that value. This allows us to represent each gradient value using a single integer, rather than a floating-point value, which can significantly reduce the amount of bandwidth required to when sending gradients. The difference between using 8bit or 16bit integer is the number of bins, which effect not only the accuracy of the data but how much data is sent over the network. If we use 16 bit integers there can be 65,536 bins where as with 8bit there is only 256 which is a significant reduction.
+If you have a vector $a \in \mathbb{R}^d$ where $a \sim \mathcal{N}(0.1,0.55)$ where we know the $\max a$ and $\min a$. We can split $a$ into equal size bins and represent each bin with either a 8bit or 16bit integer. For example, suppose we have a set of 100 bins, each representing a range of gradient values. If the gradient of a particular parameter falls within the range of the first bin, it will be represented as a 0; if it falls within the range of the second bin, it will be represented as a 1; and so on. Then once the quantized $a$ has been sent to another node that node can look up what values the bin represents and replaces all the gradients in the bin with that value. This allows us to represent each gradient value using a single integer, rather than a floating-point value, which can significantly reduce the amount of bandwidth required to when sending gradients. The difference between using 8bit or 16bit integer is the number of bins, which effects not only the accuracy of the data but how much data is sent over the network. If we use 16 bit integers there can be 65,536 bins where as with 8bit there is only 256 which is a significant reduction.
 
 \subsubsection{Non-Linear Quantization}
 
-As mentioned above $a \sim \mathcal{N}(0.1,0.55)$ this tells us that that most of the values will be located around $0.1$ which means it may be more representative of $a$ if the there are more bins located around the mean than $\max a$ and $\min a$ so bins near the mean cover a lower range of values meaning they are occur at a higher frequency, bins closer to the min and the max cover a larger range of values. Instead of all the bins covering an equal range of values at a common interval each bin will contain an equal range of values(if you have 200 gradients and 10 bins each bin will contain 20 gradients). This value assigned to the the bin is the mean of the values in the bin.
+Our implementation of non-Linear quantization is a dumbed down version of \cite{dettmers20218}. As mentioned above $a \sim \mathcal{N}(0.1,0.55)$ this tells us that that most of the values will be located around $0.1$ which means it may be more representative of $a$ if the there are more bins located around the mean than $\max a$ and $\min a$. This means bins closer to the mean cover a lower range of values, but occur at a higher frequency. Bins closer to the min and the max cover a larger range of values. Instead of all the bins covering an equal range of values at a common interval each bin will contain an equal range of values(if you have 200 gradients and 10 bins each bin will contain 20 gradients). This value assigned to the the bin is the mean of the values in the bin.
 
 \subsubsection{Block-Wise Quantization}
 
-Modern models can contain billions of trainable parameters, which translates to billions of gradients. If we represent all of those gradient as 256 different integers we loose a lot of accuracy and make it alot harder for the model to converge, so what we do is we split gradients into chunks of around 2000 or 4000 items(depending on the size of the model) and quantize each chunk separately this means that the first bin in the first chunk might cover a different ranges of values to the first bin in the second chunk. there are a few reasons for this, the first being that it allows us to use 8bit integers without a significant loss in accuracy, the second being that we can allocate each chunk to a specific GPU core makeing the quantization step a lot faster. If one of the values in $a$ was $7$ it is a clear outlier, this will effect one of the bins causing 1 bin to be wasted because of single outlier. By splitting up the data into chunks only a one of chunks would be effected by this outliers.
+Modern models can contain billions of trainable parameters, which translates to billions of gradients. If we represent all of those gradient as 256 different integers we loose a lot of accuracy and make it alot harder for the model to converge, so what we do is we split gradients into chunks of around 2000 or 4000 items(depending on the size of the model) and quantize each chunk separately this means that the first bin in the first chunk might cover a different ranges of values to the first bin in the second chunk. There are a few reasons for this, the first being that it allows us to use 8bit integers without a significant loss in accuracy, the second being that we can allocate each chunk to a specific GPU core makeing the quantization step a lot faster. If one of the values in $a$ was $7$ it is a clear outlier, this will effect one of the bins it to be wasted because of single outlier. By splitting up the data into chunks only a one chunk would be effected by this outliers.
 
 
 \subsection{Gradient Sparsification}
-Gradient sparsification is a technique that involves identifying and removing "zero" or nearly zero gradients from the gradients being transmitted between GPUs or computers in a distributed data parallelism setting. The goal is to reduce the size of the gradients without significantly affecting their quality, so that they can be transmitted more efficiently over the network.
+Gradient sparsification is a technique that involves identifying and removing "zero" or nearly zero gradients \cite{NEURIPS2018_3328bdf9} from the gradients being transmitted between GPUs or computers in a distributed data parallelism setting. The goal is to reduce the size of the gradients without significantly affecting their quality, so that they can be transmitted more efficiently over the network.
 
 In order to perform gradient sparsification we have to decide on a threshold to determine whether or not a gradient is a zero gradient or not, if the gradient is less than the threshold then it it deemed a zero gradient. In our implementation of gradient sparsification we accumulate zero gradients locally and sum them with gradients from the next iteration. 
 
@@ -130,17 +132,17 @@ $$
 
 Where $B_k$ is the batch size. Increasing the batch size in a distributed training setup can also improve training efficiency by reducing the frequency of the gradient averaging step. This is because each device will process a larger amount of data before the gradients are averaged and applied to the model weights. This can reduce the overhead associated with performing the gradient averaging step, and can allow the model to make more efficient use of the available computation resources.
 
-One negative effect of large batch sizes is that they can lead to a decrease in generalization performance. This occurs because large batch sizes can result in an increase in the variance of the stochastic gradient descent (SGD) updates, which can cause the model to overfit to the training data. This overfitting can manifest as a decrease in performance on held-out test data or a decrease in the ability of the model to generalize to unseen data.
+One negative effect of large batch sizes is that they can lead to a decrease in generalization performance \cite{keskar2016large}. This occurs because large batch sizes can result in an increase in the variance of the stochastic gradient descent (SGD) updates.
 
-Another negative effect of large batch sizes is that they can lead to a decrease in the convergence rate of the model. This occurs because large batch sizes can result in a reduction in the magnitude of the SGD updates, which can slow down the convergence of the model. In some cases, this can result in the model failing to converge at all.
+Another negative effect of large batch sizes is that they can lead to a decrease in the convergence rate of the model \cite{goyal2017accurate}. This occurs because large batch sizes can result in a reduction in the magnitude of the SGD updates, which can slow down the convergence of the model. In some cases, this can result in the model failing to converge at all.
 
 Furthermore, using large batch sizes can lead to an increase in the amount of memory required to store and process the data. This can be a problem for systems with limited memory or for models with a large number of parameters, as the large batch sizes may not fit in memory.
 
-One way to counteract the second point is to increase the learning rate $\eta$ so that the magnitude of the SGD updates are increased this usually works for a few of epochs but after a while has a limited effect. We plan to use a adaptive batch size \cite{devarakonda2017adabatch}. At the start of training a an initial batch size is determined, and the primary test error is calculated from the models untrained parameters. After each epoch the the the test error is checked, once the test error is half of the primary test error the batch size gets doubled, once the test error is a quarter of the primary test error the batch size is doubled again batch.
+One way to counteract the the decrease in convergence is to increase the learning rate $\eta$ \cite{goyal2017accurate} so that the magnitude of the SGD updates are increased this usually works for a few of epochs but after a while has a limited effect. We plan to use a adaptive batch size \cite{devarakonda2017adabatch}. At the start of training an initial batch size is determined, and the primary test error is calculated from the models initial untrained parameters $w_0$. After each epoch the test error is checked, once the test error is half of the primary test error the batch size gets doubled, once the test error is a quarter of the primary test error the batch size is doubled again batch.
 
-Another way which we can reduce the negative effect of a large batch size is to use a different optimizer algorithm to SGD, a common alternative is Adam (Adaptive Moment Estimation) the problem with ADAM is that ADAM has been found to scale poorly with large batch sizes. There are 2 optimizers that scale well with large batch sizes, LARS (Layer-wise Adaptive Rate Scaling) \cite{you2017scaling} \& LAMB (Layer-wise Adaptive Moments for Batch Training) \cite{you2019large}. We have chosen to use LAMB as our optimiser. 
+Another way which we can reduce the negative effect of a large batch size is to use a different optimizer algorithm to SGD, a common alternative is Adam (Adaptive Moment Estimation) \cite{kingma2014adam} the problem with ADAM is that Adam has been found to scale poorly with large batch sizes. There are 2 optimizers that scale well with large batch sizes, LARS (Layer-wise Adaptive Rate Scaling) \cite{you2017scaling} \& LAMB (Layer-wise Adaptive Moments for Batch Training) \cite{you2019large}. We have chosen to use LAMB as our optimiser. 
 
-LAMB is pretty similar to ADAM. We start by computing the gradients $g_t$ at time step $t$, then much like ADAM we calculate the first $m$ and second $v$ moment of each layer $l$ using the following equations:
+LAMB is pretty similar to Adam. We start by computing the gradients $g_t$ at time step $t$, then much like Adam we calculate the first $m$ and second $v$ moment of each layer $l$ using the following equations:
 \begin{equation*} \label{1mom}
 m^l_t = \beta _1 m^l_{t-1} + (1-\beta _1) g^l_t
 \end{equation*}
@@ -155,7 +157,7 @@ Then we bias correct for both of the moments:
 \hat{v}^l_t = v^l_t /(1-\beta ^t_2)
 \end{equation*}
 
-In these equations $\beta _{1/2}$ are the coefficient of the first/second moment. After we calculate the moments we trust ratio:
+In these equations $\beta _{1/2}$ are the coefficient of the first/second moment. After we bias correct the moments we calculate the trust ratio:
 
 \begin{equation*}
 r^l_t = 1.0
@@ -172,11 +174,11 @@ r^l_t =
 \left\{
 	\begin{array}{cc}
 		r_1/r_2 & \quad r_1 > 0 \text{ and } r_2 > 0 \\
-		1 & \quad r_1 < 0 \text{ or } r_" < 0
+		1 & \quad r_1 < 0 \text{ or } r_2 < 0
 	\end{array}
 \right\}
 \end{equation*}
-$r_1$ is the norm of the gradients and $r_2$ is the element-wise weight decay. To make sure that our value is $r^l_t$ isn’t too large or too small we have and upper and lower boundary $a$ and $b$. $\epsilon$ in equation \ref{r2} is to prevent a division by 0 error.
+$r_1$ is the norm of the gradients and $r_2$ is the element-wise weight decay. $r^l_t$ has to be greater than zero. $\epsilon$ in equation \ref{r2} is to prevent a division by 0 error.
 
 our final step is to upgrade the parameters:
 \begin{equation*}
@@ -200,11 +202,11 @@ B_k = \min \left(\beta,b\varepsilon\right)
 $$
 \endgroup
 
-These equation explain adaptive batch sizing. First the scaling factor $\varepsilon$ where $E_0(w_0,x_R)$ is the primary test error, we make sure that value of $\varepsilon$ is greater than 1 as if for some reason $E_0(w_0,x_R) < E_e(w_t, x_R)$ the batch size would decrease which is not what we want. Then its just a case of multiplying $b$ by your scaling factor $\varepsilon$ and checking to see if its greater than $\beta$. Please not that using the output of a loss function in stead of the test error is sufficient.
+These equations explain adaptive batch sizing. First the scaling factor $\varepsilon$ where $E_0(w_0,x_R)$ is the primary test error, we make sure that value of $\varepsilon$ is greater than 1 as if for some reason $E_0(w_0,x_R) < E_e(w_t, x_R)$ the batch size would decrease which is not what we want. Then its just a case of multiplying $b$ by your scaling factor $\varepsilon$ and checking to see if its greater than $\beta$. Please note that using the output of a loss function instead of the test error is sufficient.
 
 
 \subsection{Models}
-Within our test we use a range of different models. The most important factor when choosing a model is to make sure we get a good range of sizes between our models. These are the models we train to get results:
+Within our test we use a range of different models. The most important factor when choosing a model is to make sure we get a good range of sizes between our models. These are the models \cite{he2016deep,simonyan2014very,szegedy2017inception} we train to get results:
 
 \begin{center}
 \begin{tabular}{| p{3cm} | p{3cm} | p{3cm} | p{3cm} |} 
@@ -235,9 +237,9 @@ Inception v4 & 42,608,450 &  170.2\\ \hline
 In an ideal world training speed would increase linearly with the number of GPUs you have training the model. In our test to determine the results of Figure 1 (a) we train each model with a $B_k$ (batch size) of 32 and on the cifar 100 dataset of which we use 50000 images for training, this means that there are just under 1600 iterations in a single epoch. Figure 1(b) is determined by the size of the model divided by the speed of the network.
 
 \subsection{Baseline}
-In out result we plan to compare the theoretical with the applied.In this case 8 GPUs were each node has 1 GPU, the data is evenly split between each node translating to each node training with a sample of 6250 images. By increasing the number of nodes from 1 to 8 we reduces the number of communication steps per epoch to around 200 but there is also more data sent in each communication step as each node is sending its own gradients to 8 other nodes. 
+In our result we plan to compare the theoretical with the applied. In this case 8 GPUs were each node has 1 GPU, the data is evenly split between each node translating to each node training with a sample of 6250 images. By increasing the number of nodes from 1 to 8 we reduces the number of communication steps per epoch to around 200 but there is also more data sent in each communication step as each node is sending its own gradients to 8 other nodes. 
 
-If each node was to individually send its gradients to all the other node, there would be $N(N-1)$ messages being sent between nodes, where $N$ is the number of nodes, in the case of 8 nodes that is $56$ messages. If we were dealing with our worst case scenario where you are training VGG16 on 100MBps you could take multiple hours ($4*200*56$ seconds) per epoch. This is cause by only 1 node sending data at a time while the rest of the nodes are idol caused by the networks constraints. As we are using a more efficient ring all reduce algorithm, we should have a much lower communication time than multiple hours.
+If each node was to individually send its gradients to all the other node, there would be $N(N-1)$ messages being sent between nodes, where $N$ is the number of nodes, in the case of 8 nodes that is $56$ messages. If we were dealing with our worst case scenario where you are training VGG16 on 100MBps you could take multiple hours ($4*200*56$ seconds) per epoch. This is caused by only 1 node sending data at a time while the rest of the nodes are idle caused by the networks constraints. As we are using a more efficient ring all reduce algorithm, we should have a much lower communication time than multiple hours.
 
 We plan to use 8bit quantization using both non-linear and block-wise techniques. non-linear quantization doesn't effect bandwidth it just helps to reduce variance. Block-wise allows us to decrease the gradients size by a factor of 4 but adds $\frac{p}{k}\times 256$ float16 numbers on top of the quantized gradients in order to undo the quantization where $p$ is the number of parameters and $k$ is the value that determines the number of block usually 2048 or 4096. For the example of vgg16 you decrease the gradients to around 110 MB in size but add the additional size of an extra size of 8,000,000 32 bit floating points.
 
@@ -263,10 +265,9 @@ COULD NOT ACCESS A COMPUTER
 
 
 \section{Conclusion}
-We were not able to access a computer so were not able to validate whether the techniques we implemented had a beneficial effect on the training time. 
+We were not able to access a computer cluster, so were not able to validate whether the techniques we implemented had a beneficial effect on the training performance. We believe AI and Machine learning is getting to a point where it is completely inaccessible for the majority of researchers. Models are beginning to reach the 1 trillion parameter mark, making it impossible for a researcher that doesn't work for a company like Microsoft or Google to work on the cutting edge. We believe that by implementing techniques like the ones presented in this paper, machine learning at larger scale can become more accessible to everyone.
 
-
-
+\newpage
 \bibliographystyle{plain}
 \bibliography{paperRef}
 

@@ -1,15 +1,81 @@
-\begin{thebibliography}{1}
+\begin{thebibliography}{10}
+
+\bibitem{jax2018github}
+James Bradbury, Roy Frostig, Peter Hawkins, Matthew~James Johnson, Chris Leary,
+  Dougal Maclaurin, George Necula, Adam Paszke, Jake Vander{P}las, Skye
+  Wanderman-{M}ilne, and Qiao Zhang.
+\newblock {JAX}: composable transformations of {P}ython+{N}um{P}y programs,
+  2018.
+
+\bibitem{dettmers20218}
+Tim Dettmers, Mike Lewis, Sam Shleifer, and Luke Zettlemoyer.
+\newblock 8-bit optimizers via block-wise quantization.
+\newblock {\em arXiv preprint arXiv:2110.02861}, 2021.
 
 \bibitem{devarakonda2017adabatch}
 Aditya Devarakonda, Maxim Naumov, and Michael Garland.
 \newblock Adabatch: Adaptive batch sizes for training deep neural networks.
 \newblock {\em arXiv preprint arXiv:1712.02029}, 2017.
 
+\bibitem{gibiansky2017bringing}
+Andrew Gibiansky.
+\newblock Bringing hpc techniques to deep learning.
+\newblock {\em Baidu Research, Tech. Rep.}, 2017.
+
+\bibitem{goyal2017accurate}
+Priya Goyal, Piotr Doll{\'a}r, Ross Girshick, Pieter Noordhuis, Lukasz
+  Wesolowski, Aapo Kyrola, Andrew Tulloch, Yangqing Jia, and Kaiming He.
+\newblock Accurate, large minibatch sgd: Training imagenet in 1 hour.
+\newblock {\em arXiv preprint arXiv:1706.02677}, 2017.
+
+\bibitem{he2016deep}
+Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun.
+\newblock Deep residual learning for image recognition.
+\newblock In {\em Proceedings of the IEEE conference on computer vision and
+  pattern recognition}, pages 770--778, 2016.
+
+\bibitem{mpi4jax}
+Dion Häfner and Filippo Vicentini.
+\newblock mpi4jax: Zero-copy mpi communication of jax arrays.
+\newblock {\em Journal of Open Source Software}, 6(65):3419, 2021.
+
+\bibitem{keskar2016large}
+Nitish~Shirish Keskar, Dheevatsa Mudigere, Jorge Nocedal, Mikhail Smelyanskiy,
+  and Ping Tak~Peter Tang.
+\newblock On large-batch training for deep learning: Generalization gap and
+  sharp minima.
+\newblock {\em arXiv preprint arXiv:1609.04836}, 2016.
+
+\bibitem{kingma2014adam}
+Diederik~P Kingma and Jimmy Ba.
+\newblock Adam: A method for stochastic optimization.
+\newblock {\em arXiv preprint arXiv:1412.6980}, 2014.
+
 \bibitem{lian2017can}
 Xiangru Lian, Ce~Zhang, Huan Zhang, Cho-Jui Hsieh, Wei Zhang, and Ji~Liu.
 \newblock Can decentralized algorithms outperform centralized algorithms? a
   case study for decentralized parallel stochastic gradient descent.
 \newblock {\em Advances in neural information processing systems}, 30, 2017.
+
+\bibitem{simonyan2014very}
+Karen Simonyan and Andrew Zisserman.
+\newblock Very deep convolutional networks for large-scale image recognition.
+\newblock {\em arXiv preprint arXiv:1409.1556}, 2014.
+
+\bibitem{szegedy2017inception}
+Christian Szegedy, Sergey Ioffe, Vincent Vanhoucke, and Alexander Alemi.
+\newblock Inception-v4, inception-resnet and the impact of residual connections
+  on learning.
+\newblock In {\em Proceedings of the AAAI conference on artificial
+  intelligence}, volume~31, 2017.
+
+\bibitem{NEURIPS2018_3328bdf9}
+Jianqiao Wangni, Jialei Wang, Ji~Liu, and Tong Zhang.
+\newblock Gradient sparsification for communication-efficient distributed
+  optimization.
+\newblock In S.~Bengio, H.~Wallach, H.~Larochelle, K.~Grauman, N.~Cesa-Bianchi,
+  and R.~Garnett, editors, {\em Advances in Neural Information Processing
+  Systems}, volume~31. Curran Associates, Inc., 2018.
 
 \bibitem{you2017scaling}
 Yang You, Igor Gitman, and Boris Ginsburg.
