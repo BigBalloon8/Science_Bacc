@@ -1,7 +1,10 @@
-\documentclass[11pt]{article}
+\documentclass[twocolumn,10pt]{article}
 \usepackage[margin=1in]{geometry}
 \usepackage[parfill]{parskip}
 \usepackage{amsmath, amsfonts,tabularx,graphicx, subfigure, mathtools}
+%\usepackage{ACL2023}
+\usepackage{multicol}
+\setlength{\columnsep}{1cm}
 \title{Improving the Performance of Distributed Data Parallelism \\Over Low Communication  Bandwidths}
 \author{Christopher Rae \\ \begin{small} email: raecd123@gmail.com \end{small}}
 
@@ -18,19 +21,21 @@
 \begin{abstract}
 There is no doubt that networking is a bottleneck when training neural networks across multiple GPUs and computers. Having a low bandwidth or a high latency can drastically increase training time of a neural network. In this paper we look at a variety of methods to reduce the effect of a low bandwidth including gradient sparsification, gradient quantization and a using a large batch size. We find ... COULDN'T FIND COMPUTER
 \end{abstract}
-\tableofcontents
-\newpage
+%\tableofcontents
+%\newpage
+
+%\begin{multicols}{2}
 
 \section{Introduction}
 Distributed data parallelism is a widely used technique for training Artificial Intelligence (AI) models, especially when working with large datasets. It involves dividing the data across multiple nodes and training multiple copies of the model in parallel, which can significantly reduce the time required for training. However, the efficiency of this technique can be affected by several factors, including the bandwidth of the communication channels between the nodes.
 
-Low WiFi bandwidths can have a significant impact on the training time of AI models using distributed data parallelism. When the communication channels between nodes have low bandwidth, this can lead to slower data transfer and synchronization between the nodes, which can in turn result in slower training times. In addition, low WiFi bandwidths may also lead to increased latency in the communication between nodes, further diminishing the efficiency of the training process.
+Low communication bandwidths can have a significant impact on the training time of AI who are training using distributed data parallelism. When the communication channels between nodes have low bandwidth, this can lead to slower data transfer and synchronization between the nodes, which can in turn result in slower training times. In addition, low communication bandwidths may also lead to increased latency in the communication between nodes, further diminishing the efficiency of the training process.
 
-In this paper, we aim to explore the relationship between low WiFi bandwidths and the training time of AI models using distributed data parallelism. We will discuss the various ways in which low WiFi bandwidths can impact the communication between nodes and the overall efficiency of the training process. We will also present potential solutions for mitigating the negative effects of low WiFi bandwidths on model training time.
+In this paper, we aim to explore the relationship between low communication bandwidths and the training time of AI models using distributed data parallelism. We will discuss the various ways in which low communication bandwidths can impact the communication between nodes and the overall efficiency of the training process. We will also present potential solutions for mitigating the negative effects of low communication bandwidths on model training time.
 
-To provide a better understanding of the role that WiFi bandwidth plays in the training of AI models using distributed data parallelism, we will conduct experiments using a variety of datasets and model architectures. We will compare the training time of models trained using distributed data parallelism in high and low WiFi bandwidth environments to evaluate the impact of low WiFi bandwidths on the training process.
+To provide a better understanding of the role that communication bandwidths play in the training of AI models using distributed data parallelism, we will conduct experiments using a variety of datasets and model architectures. We will compare the training time of models trained using distributed data parallelism in high and low communication bandwidth environments to evaluate the impact of low communication bandwidths on the training process.
 
-Overall, our goal is to shed light on the importance of WiFi bandwidth in the training of AI models using distributed data parallelism and to identify strategies for optimizing the training process in low bandwidth environments. We hope that the findings of this research will be useful for practitioners seeking to improve the efficiency of their model training process and for researchers studying the optimization of distributed data parallelism for AI model training.
+Overall, our goal is to shed light on the importance of the communication bandwidth in the training of AI models using distributed data parallelism and to identify strategies for optimizing the training process in low bandwidth environments. We hope that the findings of this research will be useful for practitioners seeking to improve the efficiency of their model training process and for researchers studying the optimization of distributed data parallelism for AI model training.
 
 \section{Methodology}
 \subsection{Distributed Data Parallelism}
@@ -41,7 +46,7 @@ Here is an overview of the process:
 \begin{enumerate}
 	\item First, the data and model are partitioned or "split" across the GPUs and computers in 			  the cluster. This is typically done by dividing the data into smaller chunks and 	  				   assigning each chunk to a GPU or computer in the cluster.
 	\item Next, the training process begins. On each GPU or computer in the cluster, the model 				  processes the data assigned to it and computes the gradients of the loss function with 		  respect to the model parameters.
-	\newpage
+	%\newpage
 	\item The gradients computed on each GPU or computer are then averaged together, and the 				  model parameters are updated using this average gradient. This process is known as 				  "gradient averaging" or "gradient synchronization."
 	\item The process is then repeated, with each GPU or computer processing its assigned data 				  and computing gradients, until the model has been trained.
 \end{enumerate}
@@ -74,8 +79,8 @@ Where $g_t(w_{t-1})$ is an estimate for the actual gradient ${\nabla} L_t(w_t)$ 
 
 \subsection{Gradient Quantization}
 Gradient quantization is a technique used in distributed data parallelism to reduce the amount of data that needs to be transmitted over channels during training. It works by reducing the precision of the gradients that are transmitted between worker nodes.
-
-A model parameter is usually stored in memory as a 32bit floating point. There are $7, 800, 000, 000,\\ 000, 000,000,000,000,000,000,000,000,000,000,000,000,000,000$(38zeros) unique 32bit floating points, but that said 32bit floating points like $0.000100$, $0.000101$ and $0.000102$ are very close. We can approximate these numbers to be equal, this is the core concept of quantization.
+\\\\
+A model parameter is usually stored in memory as a 32bit floating point. There are $7.8\text{e}39$ (38zeros) unique 32bit floating points, but that said 32bit floating points like $0.000100$, $0.000101$ and $0.000102$ are very close. We can approximate these numbers to be equal, this is the core concept of quantization.
 
 If you have a vector $a \in \mathbb{R}^d$ where $a \sim \mathcal{N}(0.1,0.55)$ where we know the $\max a$ and $\min a$. We can split $a$ into equal size bins and represent each bin with either a 8bit or 16bit integer. For example, suppose we have a set of 100 bins, each representing a range of gradient values. If the gradient of a particular parameter falls within the range of the first bin, it will be represented as a 0; if it falls within the range of the second bin, it will be represented as a 1; and so on. Then once the quantized $a$ has been sent to another node that node can look up what values the bin represents and replaces all the gradients in the bin with that value. This allows us to represent each gradient value using a single integer, rather than a floating-point value, which can significantly reduce the amount of bandwidth required to when sending gradients. The difference between using 8bit or 16bit integer is the number of bins, which effects not only the accuracy of the data but how much data is sent over the network. If we use 16 bit integers there can be 65,536 bins where as with 8bit there is only 256 which is a significant reduction.
 
@@ -165,7 +170,7 @@ r^l_t = 1.0
 \begin{equation*}
 r_1 = \phi(\norm{w^l_{t-1}})
 \end{equation*}
-$\phi(\parallel x \parallel)$ where $x \in \mathbb{R}^d$ is the same as doing $\sqrt{\sum^d_{i=1} x_i^2}$
+%$\phi(\parallel x \parallel)$ where $x \in \mathbb{R}^d$ is the same as doing $\sqrt{\sum^d_{i=1} x_i^2}$
 \begin{equation*}\label{r2}
 r_2= \norm[\bigg]{\frac{\hat{m}^l_t}{\sqrt{\hat{v}^l_t + \epsilon}} + \lambda w^l_{t-1}}
 \end{equation*}
@@ -209,7 +214,7 @@ These equations explain adaptive batch sizing. First the scaling factor $\vareps
 Within our test we use a range of different models. The most important factor when choosing a model is to make sure we get a good range of sizes between our models. These are the models \cite{he2016deep,simonyan2014very,szegedy2017inception} we train to get results:
 
 \begin{center}
-\begin{tabular}{| p{3cm} | p{3cm} | p{3cm} | p{3cm} |} 
+\begin{tabular}{| p{2.2cm} | p{2.2cm} | p{2.2cm} |} 
 \hline
 Model & No. Parameters &  Gradient Physical Size (MB)\\ \hline
 RESNET-50 & 25,583,592 &  94.1 \\ \hline
@@ -221,7 +226,6 @@ Inception v4 & 42,608,450 &  170.2\\ \hline
 \end{tabular}
 \end{center}
 
-\newpage
 \section{Results}
 \begin{figure}[h]
   \centering
@@ -263,12 +267,15 @@ COULD NOT ACCESS A COMPUTER
 \end{center}
 \end{Huge}
 
-
+\newpage
 \section{Conclusion}
 We were not able to access a computer cluster, so were not able to validate whether the techniques we implemented had a beneficial effect on the training performance. We believe AI and Machine learning is getting to a point where it is completely inaccessible for the majority of researchers. Models are beginning to reach the 1 trillion parameter mark, making it impossible for a researcher that doesn't work for a company like Microsoft or Google to work on the cutting edge. We believe that by implementing techniques like the ones presented in this paper, machine learning at larger scale can become more accessible to everyone.
 
 \newpage
+%\newpage
 \bibliographystyle{plain}
 \bibliography{paperRef}
+
+%\end{multicols}
 
 \end{document}
